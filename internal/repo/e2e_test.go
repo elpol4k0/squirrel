@@ -30,7 +30,7 @@ func TestE2E_BackupPruneRestoreVerify(t *testing.T) {
 		}
 	}
 
-	// ── Backup ──────────────────────────────────────────────────────────────
+	// backup
 	r, err := repo.Open(repoDir, []byte(testPassword))
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +66,7 @@ func TestE2E_BackupPruneRestoreVerify(t *testing.T) {
 		t.Fatalf("SaveSnapshot: %v", err)
 	}
 
-	// ── Prune (no deletes → nothing should be removed) ──────────────────────
+	// prune with no deletes – nothing should be removed
 	deleted, _, err := r.Prune(ctx)
 	if err != nil {
 		t.Fatalf("Prune: %v", err)
@@ -75,7 +75,7 @@ func TestE2E_BackupPruneRestoreVerify(t *testing.T) {
 		t.Errorf("prune removed %d packs but all blobs are still referenced", deleted)
 	}
 
-	// ── Restore in a fresh session ──────────────────────────────────────────
+	// restore in a fresh session
 	r2, err := repo.Open(repoDir, []byte(testPassword))
 	if err != nil {
 		t.Fatalf("reopen repo: %v", err)
@@ -108,7 +108,7 @@ func TestE2E_BackupPruneRestoreVerify(t *testing.T) {
 			t.Fatalf("LoadBlob %s: %v", node.Name, err)
 		}
 
-		// ── Verify ──────────────────────────────────────────────────────────
+		// verify
 		want := wantFiles[node.Name]
 		if !bytes.Equal(got, want) {
 			t.Errorf("file %s: content mismatch after restore (%d vs %d bytes)", node.Name, len(got), len(want))

@@ -189,8 +189,6 @@ func TestSaveSnapshot(t *testing.T) {
 	}
 }
 
-// ─── helpers ──────────────────────────────────────────────────────────────
-
 func randomData(t *testing.T, n int) []byte {
 	t.Helper()
 	b := make([]byte, n)

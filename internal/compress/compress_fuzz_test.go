@@ -7,7 +7,7 @@ import (
 	"github.com/elpol4k0/squirrel/internal/compress"
 )
 
-// FuzzDecompress_NeverPanics verifies that garbage input never panics the decoder.
+// garbage input must never panic the decoder
 func FuzzDecompress_NeverPanics(f *testing.F) {
 	f.Add(compress.Compress([]byte("hello world")))
 	f.Add([]byte{})
@@ -18,7 +18,7 @@ func FuzzDecompress_NeverPanics(f *testing.F) {
 	})
 }
 
-// FuzzCompressDecompress_RoundTrip verifies lossless compression for arbitrary input.
+// compress→decompress must be lossless for arbitrary input
 func FuzzCompressDecompress_RoundTrip(f *testing.F) {
 	f.Add([]byte("the quick brown fox jumps over the lazy dog"))
 	f.Add([]byte{})

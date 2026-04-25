@@ -7,7 +7,7 @@ import (
 	"github.com/elpol4k0/squirrel/internal/crypto"
 )
 
-// FuzzOpen_NeverPanics ensures garbage ciphertext never causes a panic.
+// garbage ciphertext must never panic the decoder
 func FuzzOpen_NeverPanics(f *testing.F) {
 	key, _ := crypto.GenerateMasterKey()
 	seed, _ := crypto.Seal(key, []byte("seed"))
@@ -21,7 +21,7 @@ func FuzzOpen_NeverPanics(f *testing.F) {
 	})
 }
 
-// FuzzSealOpen_RoundTrip verifies the seal→open identity for arbitrary plaintext.
+// seal→open must be identity for arbitrary plaintext
 func FuzzSealOpen_RoundTrip(f *testing.F) {
 	f.Add([]byte("hello world"))
 	f.Add([]byte{})
@@ -46,7 +46,7 @@ func FuzzSealOpen_RoundTrip(f *testing.F) {
 	})
 }
 
-// FuzzSeal_WrongKeyFails verifies a different key never decrypts successfully.
+// wrong key must never decrypt successfully
 func FuzzSeal_WrongKeyFails(f *testing.F) {
 	f.Add([]byte("secret data"))
 
