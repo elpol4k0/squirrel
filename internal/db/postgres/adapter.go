@@ -255,7 +255,7 @@ func (a *Adapter) replConn(ctx context.Context) (*pgconn.PgConn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse DSN: %w", err)
 	}
-	cfg.RuntimeParams["replication"] = "database"
+	cfg.RuntimeParams["replication"] = "on"
 	conn, err := pgconn.ConnectConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("replication connect: %w", err)

@@ -33,7 +33,7 @@ func (a *Adapter) PhysicalBackup(ctx context.Context, r *repo.Repo, dataDir stri
 
 	file, pos, _, _, gtidSet, binlogErr := showBinlogStatus(ctx, conn)
 	if binlogErr != nil {
-		conn.ExecContext(ctx, "UNLOCK TABLES")
+		conn.ExecContext(ctx, "UNLOCK TABLES") //nolint:errcheck
 		return gomysql.Position{}, "", "", fmt.Errorf("binlog status: %w", binlogErr)
 	}
 	binlogPos := gomysql.Position{Name: file, Pos: pos}

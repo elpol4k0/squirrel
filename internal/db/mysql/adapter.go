@@ -96,7 +96,7 @@ func (a *Adapter) Dump(ctx context.Context, r *repo.Repo, databases []string) (g
 	// Read binlog position while the lock is held.
 	file, pos, _, _, executedGTIDSet, binlogErr := showBinlogStatus(ctx, conn)
 	if binlogErr != nil {
-		conn.ExecContext(ctx, "UNLOCK TABLES")
+		conn.ExecContext(ctx, "UNLOCK TABLES") //nolint:errcheck
 		return gomysql.Position{}, "", "", fmt.Errorf("binlog status: %w", binlogErr)
 	}
 	binlogPos := gomysql.Position{Name: file, Pos: pos}
@@ -105,10 +105,10 @@ func (a *Adapter) Dump(ctx context.Context, r *repo.Repo, databases []string) (g
 	// Start consistent snapshot transaction before releasing the lock.
 	tx, err := conn.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
 	if err != nil {
-		conn.ExecContext(ctx, "UNLOCK TABLES")
+		conn.ExecContext(ctx, "UNLOCK TABLES") //nolint:errcheck
 		return gomysql.Position{}, "", "", err
 	}
-	conn.ExecContext(ctx, "UNLOCK TABLES") // safe: transaction holds the snapshot
+	conn.ExecContext(ctx, "UNLOCK TABLES") //nolint:errcheck
 
 	if len(databases) == 0 {
 		databases, err = listDatabases(ctx, tx)
