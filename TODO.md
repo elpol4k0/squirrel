@@ -125,9 +125,9 @@
 - [ ] Support für mehrere Tablespaces mit korrekten Symlinks
 
 ### MySQL
-- [ ] GTID-basiertes Binlog-Streaming (`StartSyncGTID`)
+- [x] GTID-basiertes Binlog-Streaming (`StartSyncGTID`)
 - [x] MariaDB-Support (Flavor-Detection via SELECT VERSION(), lazy sync.Once)
-- [ ] Physisches Restore mit InnoDB-Recovery-Modus-Konfiguration
+- [x] Physisches Restore mit InnoDB-Recovery-Modus-Konfiguration
 
 ### Config & Security
 - [x] `age`-Secret-Provider (`${age:encrypted_file}`)

@@ -26,19 +26,42 @@ func RestoreBase(ctx context.Context, r *repo.Repo, snap *repo.Snapshot, targetD
 		return fmt.Errorf("mkdir target: %w", err)
 	}
 
+	// base.tar must be extracted first so pg_tblspc symlinks exist before we rewrite them.
 	for _, node := range tree.Nodes {
-		if node.Type != "file" {
+		if node.Type != "file" || node.Name != "base.tar" {
 			continue
 		}
-		destDir := targetDir
-		if node.Name != "base.tar" {
-			// tablespace: extract into pg_tblspc/<oid>
-			oid := strings.TrimSuffix(strings.TrimPrefix(node.Name, "pg_tblspc_"), ".tar")
-			destDir = filepath.Join(targetDir, "pg_tblspc", oid)
+		slog.Info("extracting base", "blobs", len(node.Content))
+		if err := extractBlobsAsTAR(ctx, r, node.Content, targetDir); err != nil {
+			return fmt.Errorf("extract base.tar: %w", err)
 		}
-		slog.Info("extracting", "file", node.Name, "blobs", len(node.Content), "dest", destDir)
-		if err := extractBlobsAsTAR(ctx, r, node.Content, destDir); err != nil {
-			return fmt.Errorf("extract %s: %w", node.Name, err)
+	}
+
+	for _, node := range tree.Nodes {
+		if node.Type != "file" || node.Name == "base.tar" {
+			continue
+		}
+		oid := strings.TrimSuffix(strings.TrimPrefix(node.Name, "pg_tblspc_"), ".tar")
+		localDataDir := filepath.Join(targetDir, "pg_tblspc_data", oid)
+		if err := os.MkdirAll(localDataDir, 0o700); err != nil {
+			return fmt.Errorf("mkdir tablespace data: %w", err)
+		}
+		slog.Info("extracting tablespace", "oid", oid, "blobs", len(node.Content))
+		if err := extractBlobsAsTAR(ctx, r, node.Content, localDataDir); err != nil {
+			return fmt.Errorf("extract tablespace %s: %w", oid, err)
+		}
+		// Replace the symlink pg_basebackup created (pointing to the original server path)
+		// with one pointing to our locally extracted copy.
+		symlinkPath := filepath.Join(targetDir, "pg_tblspc", oid)
+		if orig, err := os.Readlink(symlinkPath); err == nil {
+			slog.Info("tablespace symlink replaced", "oid", oid, "was", orig, "now", localDataDir)
+		}
+		os.Remove(symlinkPath)
+		if err := os.MkdirAll(filepath.Dir(symlinkPath), 0o700); err != nil {
+			return fmt.Errorf("mkdir pg_tblspc: %w", err)
+		}
+		if err := os.Symlink(localDataDir, symlinkPath); err != nil {
+			return fmt.Errorf("symlink tablespace %s: %w", oid, err)
 		}
 	}
 	return nil

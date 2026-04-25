@@ -268,6 +268,101 @@ func listDatabases(ctx context.Context, tx *sql.Tx) ([]string, error) {
 	return dbs, rows.Err()
 }
 
+func (a *Adapter) StreamBinlogGTID(ctx context.Context, r *repo.Repo, gtidSetStr string) ([]BinlogSegment, error) {
+	flavor := a.detectFlavor(ctx)
+
+	var gtidSet gomysql.GTIDSet
+	var parseErr error
+	if flavor == "mariadb" {
+		gtidSet, parseErr = gomysql.ParseMariadbGTIDSet(gtidSetStr)
+	} else {
+		gtidSet, parseErr = gomysql.ParseMysqlGTIDSet(gtidSetStr)
+	}
+	if parseErr != nil {
+		return nil, fmt.Errorf("parse GTID set %q: %w", gtidSetStr, parseErr)
+	}
+
+	cfg := replication.BinlogSyncerConfig{
+		ServerID: uint32(rand.Int31n(100000) + 1000), //nolint:gosec
+		Flavor:   flavor,
+		Host:     a.host,
+		Port:     a.port,
+		User:     a.user,
+		Password: a.pass,
+	}
+	syncer := replication.NewBinlogSyncer(cfg)
+	defer syncer.Close()
+
+	streamer, err := syncer.StartSyncGTID(gtidSet)
+	if err != nil {
+		return nil, fmt.Errorf("start GTID sync: %w", err)
+	}
+
+	var segments []BinlogSegment
+	var curFile string
+	var curBuf []byte
+	var curStartPos uint32
+
+	flush := func(filename string, startPos uint32, data []byte) error {
+		id, _, err := r.SaveBlob(ctx, repo.BlobData, data)
+		if err != nil {
+			return fmt.Errorf("save binlog blob: %w", err)
+		}
+		segments = append(segments, BinlogSegment{File: filename, Pos: startPos, BlobID: id.String()})
+		slog.Debug("GTID binlog segment flushed", "file", filename, "bytes", len(data))
+		return nil
+	}
+
+	for {
+		if ctx.Err() != nil {
+			break
+		}
+		ev, err := streamer.GetEvent(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
+				break
+			}
+			return segments, fmt.Errorf("get binlog event: %w", err)
+		}
+
+		switch e := ev.Event.(type) {
+		case *replication.RotateEvent:
+			if curFile != "" && len(curBuf) > 0 {
+				if err := flush(curFile, curStartPos, curBuf); err != nil {
+					return segments, err
+				}
+				curBuf = nil
+				curStartPos = 0
+			}
+			curFile = string(e.NextLogName)
+		case *replication.XIDEvent, *replication.QueryEvent,
+			*replication.RowsEvent, *replication.TableMapEvent:
+			if curFile == "" {
+				continue
+			}
+			raw := ev.RawData
+			if curStartPos == 0 {
+				curStartPos = ev.Header.LogPos - ev.Header.EventSize
+			}
+			curBuf = append(curBuf, raw...)
+			if len(curBuf) >= 64*1024*1024 {
+				if err := flush(curFile, curStartPos, curBuf); err != nil {
+					return segments, err
+				}
+				curBuf = nil
+				curStartPos = 0
+			}
+		}
+	}
+
+	if curFile != "" && len(curBuf) > 0 {
+		if err := flush(curFile, curStartPos, curBuf); err != nil {
+			return segments, err
+		}
+	}
+	return segments, nil
+}
+
 func flavorFromVersion(version string) string {
 	if strings.Contains(strings.ToLower(version), "mariadb") {
 		return "mariadb"

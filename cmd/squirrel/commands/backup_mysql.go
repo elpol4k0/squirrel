@@ -108,9 +108,13 @@ func runMySQLBackup(repoURL, dsn string, databases, tags []string, binlogOnly bo
 	}
 	fmt.Printf("snapshot %s  dump complete  binlog=%s:%d\n", snap.ID, binlogPos.Name, binlogPos.Pos)
 
-	// Continue with binlog streaming until Ctrl-C
 	slog.Info("starting binlog streaming (Ctrl-C to stop)")
-	segments, err := adapter.StreamBinlog(ctx, r, binlogPos)
+	var segments []mysqldb.BinlogSegment
+	if gtidSet != "" {
+		segments, err = adapter.StreamBinlogGTID(ctx, r, gtidSet)
+	} else {
+		segments, err = adapter.StreamBinlog(ctx, r, binlogPos)
+	}
 	if err != nil {
 		return fmt.Errorf("binlog stream: %w", err)
 	}
@@ -119,12 +123,18 @@ func runMySQLBackup(repoURL, dsn string, databases, tags []string, binlogOnly bo
 }
 
 func runMySQLBinlogOnly(ctx context.Context, r *repo.Repo, adapter *mysqldb.Adapter, dsn string, tags []string) error {
-	pos, _, err := adapter.BinlogPosition(ctx)
+	pos, gtidSet, err := adapter.BinlogPosition(ctx)
 	if err != nil {
 		return err
 	}
-	slog.Info("binlog-only streaming", "file", pos.Name, "pos", pos.Pos)
-	segments, err := adapter.StreamBinlog(ctx, r, pos)
+	var segments []mysqldb.BinlogSegment
+	if gtidSet != "" {
+		slog.Info("binlog-only GTID streaming")
+		segments, err = adapter.StreamBinlogGTID(ctx, r, gtidSet)
+	} else {
+		slog.Info("binlog-only streaming", "file", pos.Name, "pos", pos.Pos)
+		segments, err = adapter.StreamBinlog(ctx, r, pos)
+	}
 	if err != nil {
 		return err
 	}

@@ -83,6 +83,12 @@ func ExtractBinlog(ctx context.Context, r *repo.Repo, binlogSnaps []*repo.Snapsh
 	return nil
 }
 
+func WriteInnoDBRecoveryConf(targetDir string, level int) error {
+	path := filepath.Join(targetDir, "squirrel-recovery.cnf")
+	content := fmt.Sprintf("[mysqld]\ninnodb_force_recovery = %d\n", level)
+	return os.WriteFile(path, []byte(content), 0o600)
+}
+
 func extractBlobsToFile(ctx context.Context, r *repo.Repo, blobIDs []string, dest string) error {
 	f, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
