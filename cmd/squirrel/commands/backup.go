@@ -145,6 +145,7 @@ func backupEntry(ctx context.Context, r *repo.Repo, path string, stats *backupSt
 		Type:    "file",
 		Size:    fi.Size(),
 		Mode:    uint32(fi.Mode()),
+		ModTime: fi.ModTime().UnixNano(),
 		Content: contentIDs,
 	}}}
 	return saveTree(ctx, r, tree)
@@ -182,6 +183,7 @@ func backupDir(ctx context.Context, r *repo.Repo, dirPath string, stats *backupS
 					Type:    "dir",
 					Size:    fi.Size(),
 					Mode:    uint32(fi.Mode()),
+					ModTime: fi.ModTime().UnixNano(),
 					Subtree: subtreeID.String(),
 				}
 			}
@@ -202,6 +204,7 @@ func backupDir(ctx context.Context, r *repo.Repo, dirPath string, stats *backupS
 					Type:    "file",
 					Size:    size,
 					Mode:    uint32(info.Mode()),
+					ModTime: info.ModTime().UnixNano(),
 					Content: contentIDs,
 				}}
 			}()

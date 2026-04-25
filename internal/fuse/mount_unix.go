@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"syscall"
+	"time"
 
 	gofuse "github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
@@ -85,8 +86,10 @@ func (s *snapRoot) Getattr(ctx context.Context, fh gofuse.FileHandle, out *fuse.
 
 type snapDir struct {
 	gofuse.Inode
-	r      *repo.Repo
-	treeID string
+	r       *repo.Repo
+	treeID  string
+	mode    uint32
+	modTime int64 // unix nanoseconds
 }
 
 func (d *snapDir) OnAdd(ctx context.Context) {
@@ -98,7 +101,15 @@ func (d *snapDir) OnAdd(ctx context.Context) {
 }
 
 func (d *snapDir) Getattr(ctx context.Context, fh gofuse.FileHandle, out *fuse.AttrOut) syscall.Errno {
-	out.Mode = 0o555 | syscall.S_IFDIR
+	mode := d.mode
+	if mode == 0 {
+		mode = 0o555
+	}
+	out.Mode = (mode & 0o7777) | syscall.S_IFDIR
+	if d.modTime != 0 {
+		t := time.Unix(0, d.modTime)
+		out.SetTimes(nil, &t, nil)
+	}
 	return 0
 }
 
@@ -119,11 +130,21 @@ type snapFile struct {
 	r       *repo.Repo
 	blobIDs []string
 	size    int64
+	mode    uint32
+	modTime int64 // unix nanoseconds
 }
 
 func (f *snapFile) Getattr(ctx context.Context, fh gofuse.FileHandle, out *fuse.AttrOut) syscall.Errno {
-	out.Mode = 0o444 | syscall.S_IFREG
+	mode := f.mode
+	if mode == 0 {
+		mode = 0o444
+	}
+	out.Mode = (mode & 0o7777) | syscall.S_IFREG
 	out.Size = uint64(f.size)
+	if f.modTime != 0 {
+		t := time.Unix(0, f.modTime)
+		out.SetTimes(nil, &t, nil)
+	}
 	return 0
 }
 
@@ -166,11 +187,11 @@ func populateDir(ctx context.Context, r *repo.Repo, parent *gofuse.Inode, tree *
 		n := node
 		switch n.Type {
 		case "dir":
-			dir := &snapDir{r: r, treeID: n.Subtree}
+			dir := &snapDir{r: r, treeID: n.Subtree, mode: n.Mode, modTime: n.ModTime}
 			child := parent.NewPersistentInode(ctx, dir, gofuse.StableAttr{Mode: syscall.S_IFDIR})
 			parent.AddChild(n.Name, child, true)
 		case "file":
-			file := &snapFile{r: r, blobIDs: n.Content, size: n.Size}
+			file := &snapFile{r: r, blobIDs: n.Content, size: n.Size, mode: n.Mode, modTime: n.ModTime}
 			child := parent.NewPersistentInode(ctx, file, gofuse.StableAttr{Mode: syscall.S_IFREG})
 			parent.AddChild(n.Name, child, true)
 		}

@@ -122,6 +122,19 @@ func (a *Adapter) CreateSlot(ctx context.Context, slotName string) error {
 	return nil
 }
 
+func (a *Adapter) DropSlot(ctx context.Context, slotName string) error {
+	conn, err := a.replConn(ctx)
+	if err != nil {
+		return err
+	}
+	defer conn.Close(ctx)
+	if err := pglogrepl.DropReplicationSlot(ctx, conn, slotName, pglogrepl.DropReplicationSlotOptions{}); err != nil {
+		return fmt.Errorf("drop replication slot %q: %w", slotName, err)
+	}
+	slog.Info("replication slot dropped", "slot", slotName)
+	return nil
+}
+
 func (a *Adapter) StreamWAL(ctx context.Context, r *repo.Repo, slotName string, startLSN pglogrepl.LSN, timelineID int32) ([]WALSegment, error) {
 	conn, err := a.replConn(ctx)
 	if err != nil {

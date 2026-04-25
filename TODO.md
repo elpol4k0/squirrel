@@ -121,7 +121,7 @@
 ### PostgreSQL
 - [ ] Incremental Base Backup (PG 15+ `pg_basebackup --incremental`)
 - [ ] `squirrel restore postgres --pitr` mit automatischer WAL-Replay-Verification
-- [ ] Replication-Slot-Cleanup-Command (`squirrel pg drop-slot --slot squirrel`)
+- [x] Replication-Slot-Cleanup-Command (`squirrel pg drop-slot --slot squirrel`)
 - [ ] Support für mehrere Tablespaces mit korrekten Symlinks
 
 ### MySQL
@@ -140,7 +140,7 @@
 - [x] Progress-Bar in `backup files` und `restore` einbauen
 - [x] `squirrel stats --repo` – Repository-Statistiken (Größe, Dedup-Ratio, Pack-Anzahl)
 - [x] JSON-Output-Flag (`--json`) für `snapshots` und `stats`
-- [ ] Shell-Completion (bash/zsh/fish) via `cobra` (bereits durch Cobra v1.2+ eingebaut)
+- [x] Shell-Completion (bash/zsh/fish/powershell) via `cobra` (`squirrel completion <shell>`)
 - [x] `squirrel snapshots --latest` – nur neuestes Snapshot zeigen
 
 ### Distribution
@@ -155,4 +155,4 @@
 - [ ] `squirrel mount` auf Windows mit WinFsp (`cgofuse`)
 - [x] `squirrel diff --stat` – nur Zahlen, keine Dateiliste
 - [x] Cross-Snapshot-Dedup-Report (`squirrel stats --dedup`)
-- [ ] FUSE: Zeitstempel + Permissions korrekt aus Snapshot-Metadaten
+- [x] FUSE: Zeitstempel + Permissions korrekt aus Snapshot-Metadaten

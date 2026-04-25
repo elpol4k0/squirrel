@@ -32,4 +32,6 @@ func init() {
 	rootCmd.AddCommand(statsCmd)
 	rootCmd.AddCommand(keyCmd)
 	rootCmd.AddCommand(secretsCmd)
+	rootCmd.AddCommand(completionCmd)
+	rootCmd.AddCommand(pgCmd)
 }

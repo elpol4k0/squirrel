@@ -32,6 +32,7 @@ type TreeNode struct {
 	Type    string   `json:"type"` // "file" | "dir"
 	Size    int64    `json:"size"`
 	Mode    uint32   `json:"mode,omitempty"`
+	ModTime int64    `json:"mtime,omitempty"`   // unix nanoseconds
 	Content []string `json:"content,omitempty"` // file: ordered blob IDs
 	Subtree string   `json:"subtree,omitempty"` // dir: tree blob ID
 }
