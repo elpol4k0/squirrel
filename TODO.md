@@ -103,11 +103,14 @@
 ## Offen / Zukünftige Features
 
 ### Stabilität & Tests
-- [ ] Integration-Tests mit testcontainers (PostgreSQL 14/15/16/17, MySQL 8)
-- [ ] S3-Tests mit lokalem MinIO (testcontainers)
+- [x] Integration-Tests mit testcontainers (PostgreSQL 14/15/16/17, MySQL 8) – `test/integration/`
+- [x] S3-Tests mit lokalem MinIO (testcontainers) – `test/integration/s3_test.go`
 - [ ] SFTP-Tests mit lokalem OpenSSH-Container
-- [ ] Fuzz-Tests für Packfile-Parser und Crypto
-- [ ] End-to-End-Test: backup → prune → restore → verify
+- [x] Fuzz-Tests für Crypto (`FuzzOpen_NeverPanics`, `FuzzSealOpen_RoundTrip`, `FuzzSeal_WrongKeyFails`)
+- [x] Fuzz-Tests für Compress (`FuzzDecompress_NeverPanics`, `FuzzCompressDecompress_RoundTrip`)
+- [x] End-to-End-Test: backup → prune → restore → verify (`TestE2E_BackupPruneRestoreVerify`)
+- [x] Tests für parallele Uploads (`TestParallelUpload_AllBlobsRecoverable`, `TestParallelUpload_IndexPersistedAcrossSessions`)
+- [x] Tests für Key-Verwaltung (`TestAddKey_*`, `TestListKeys_*`, `TestRemoveKey_*`)
 
 ### Performance
 - [x] Parallele Blob-Uploads (Worker-Pool im Packer, 4 concurrent uploads)
