@@ -37,10 +37,16 @@ func ParseURL(rawURL string) (*SFTP, error) {
 		rootPath = "/"
 	}
 
-	var user, hostPort string
+	var user, password, hostPort string
 	if at := strings.LastIndex(userHost, "@"); at >= 0 {
-		user = userHost[:at]
+		userPart := userHost[:at]
 		hostPort = userHost[at+1:]
+		if colon := strings.Index(userPart, ":"); colon >= 0 {
+			user = userPart[:colon]
+			password = userPart[colon+1:]
+		} else {
+			user = userPart
+		}
 	} else {
 		user = os.Getenv("USER")
 		if user == "" {
@@ -53,7 +59,7 @@ func ParseURL(rawURL string) (*SFTP, error) {
 		hostPort += ":22"
 	}
 
-	auths, err := buildAuthMethods()
+	auths, err := buildAuthMethods(password)
 	if err != nil {
 		return nil, err
 	}
@@ -187,8 +193,12 @@ func (s *SFTP) Exists(_ context.Context, h backend.Handle) (bool, error) {
 	return err == nil, err
 }
 
-func buildAuthMethods() ([]gossh.AuthMethod, error) {
+func buildAuthMethods(password string) ([]gossh.AuthMethod, error) {
 	var methods []gossh.AuthMethod
+
+	if password != "" {
+		methods = append(methods, gossh.Password(password))
+	}
 
 	// SSH agent
 	if sock := os.Getenv("SSH_AUTH_SOCK"); sock != "" {
@@ -214,7 +224,7 @@ func buildAuthMethods() ([]gossh.AuthMethod, error) {
 	}
 
 	if len(methods) == 0 {
-		return nil, fmt.Errorf("no SSH authentication methods available; set SSH_AUTH_SOCK or add keys to ~/.ssh/")
+		return nil, fmt.Errorf("no SSH auth methods available (set SSH_AUTH_SOCK, add ~/.ssh keys, or use sftp://user:password@host/path)")
 	}
 	return methods, nil
 }

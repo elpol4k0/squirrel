@@ -105,7 +105,7 @@
 ### Stabilität & Tests
 - [x] Integration-Tests mit testcontainers (PostgreSQL 14/15/16/17, MySQL 8) – `test/integration/`
 - [x] S3-Tests mit lokalem MinIO (testcontainers) – `test/integration/s3_test.go`
-- [ ] SFTP-Tests mit lokalem OpenSSH-Container
+- [x] SFTP-Tests mit lokalem OpenSSH-Container (atmoz/sftp, testcontainers)
 - [x] Fuzz-Tests für Crypto (`FuzzOpen_NeverPanics`, `FuzzSealOpen_RoundTrip`, `FuzzSeal_WrongKeyFails`)
 - [x] Fuzz-Tests für Compress (`FuzzDecompress_NeverPanics`, `FuzzCompressDecompress_RoundTrip`)
 - [x] End-to-End-Test: backup → prune → restore → verify (`TestE2E_BackupPruneRestoreVerify`)
@@ -116,7 +116,7 @@
 - [x] Parallele Blob-Uploads (Worker-Pool im Packer, 4 concurrent uploads)
 - [x] Parallele Chunk-Verarbeitung beim Backup
 - [ ] Streaming-Index (Memory-mapped oder BoltDB/Pebble für TB-Repos)
-- [ ] Partial-Pack-Repack beim Prune (statt ganzen Pack löschen)
+- [x] Partial-Pack-Repack beim Prune (>10% Waste-Threshold, referenced blobs in neuen Pack)
 
 ### PostgreSQL
 - [ ] Incremental Base Backup (PG 15+ `pg_basebackup --incremental`)
@@ -126,7 +126,7 @@
 
 ### MySQL
 - [ ] GTID-basiertes Binlog-Streaming (`StartSyncGTID`)
-- [ ] MariaDB-Support (Flavor-Detection)
+- [x] MariaDB-Support (Flavor-Detection via SELECT VERSION(), lazy sync.Once)
 - [ ] Physisches Restore mit InnoDB-Recovery-Modus-Konfiguration
 
 ### Config & Security

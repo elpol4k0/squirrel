@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	gomysql "github.com/go-mysql-org/go-mysql/mysql"
@@ -26,11 +27,13 @@ type BinlogSegment struct {
 }
 
 type Adapter struct {
-	dsn  string
-	host string
-	port uint16
-	user string
-	pass string
+	dsn        string
+	host       string
+	port       uint16
+	user       string
+	pass       string
+	flavor     string
+	flavorOnce sync.Once
 }
 
 // DSN: user:pass@tcp(host:port)/dbname or mysql://user:pass@host/db
@@ -115,7 +118,7 @@ func (a *Adapter) Dump(ctx context.Context, r *repo.Repo, databases []string) (g
 func (a *Adapter) StreamBinlog(ctx context.Context, r *repo.Repo, pos gomysql.Position) ([]BinlogSegment, error) {
 	cfg := replication.BinlogSyncerConfig{
 		ServerID: uint32(rand.Int31n(100000) + 1000), //nolint:gosec
-		Flavor:   "mysql",
+		Flavor:   a.detectFlavor(ctx),
 		Host:     a.host,
 		Port:     a.port,
 		User:     a.user,
@@ -263,6 +266,31 @@ func listDatabases(ctx context.Context, tx *sql.Tx) ([]string, error) {
 		}
 	}
 	return dbs, rows.Err()
+}
+
+func flavorFromVersion(version string) string {
+	if strings.Contains(strings.ToLower(version), "mariadb") {
+		return "mariadb"
+	}
+	return "mysql"
+}
+
+func (a *Adapter) detectFlavor(ctx context.Context) string {
+	a.flavorOnce.Do(func() {
+		db, err := sql.Open("mysql", a.dsn)
+		if err != nil {
+			a.flavor = "mysql"
+			return
+		}
+		defer db.Close()
+		var version string
+		if err := db.QueryRowContext(ctx, "SELECT VERSION()").Scan(&version); err != nil {
+			a.flavor = "mysql"
+			return
+		}
+		a.flavor = flavorFromVersion(version)
+	})
+	return a.flavor
 }
 
 // Needed so time.Duration is used somewhere to avoid import unused error.

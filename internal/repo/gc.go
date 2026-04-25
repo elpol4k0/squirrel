@@ -1,6 +1,7 @@
 package repo
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +10,8 @@ import (
 	"github.com/elpol4k0/squirrel/internal/backend"
 	"github.com/elpol4k0/squirrel/internal/crypto"
 )
+
+const repackWasteThreshold = 0.10
 
 func (r *Repo) ReferencedBlobs(ctx context.Context) (map[BlobID]bool, error) {
 	snaps, err := r.ListSnapshots(ctx)
@@ -60,7 +63,6 @@ func (r *Repo) Prune(ctx context.Context) (deleted int, freed int64, err error) 
 		return 0, 0, err
 	}
 
-	// Build map: packID → []PackBlobLocation for all blobs in that pack
 	packBlobs := make(map[string][]PackBlobLocation)
 	r.Index.mu.RLock()
 	for _, loc := range r.Index.blobs {
@@ -70,45 +72,131 @@ func (r *Repo) Prune(ctx context.Context) (deleted int, freed int64, err error) 
 
 	var deletedPacks []string
 	for packID, locs := range packBlobs {
-		anyReferenced := false
+		refCount := 0
 		for _, loc := range locs {
 			if refs[loc.BlobID] {
-				anyReferenced = true
-				break
+				refCount++
 			}
 		}
-		if anyReferenced {
+
+		if refCount == 0 {
+			fi, statErr := r.backend.Stat(ctx, backend.Handle{Type: backend.TypeData, Name: packID})
+			if statErr == nil {
+				freed += fi.Size
+			}
+			if err := r.backend.Remove(ctx, backend.Handle{Type: backend.TypeData, Name: packID}); err != nil {
+				return deleted, freed, fmt.Errorf("remove pack %s: %w", packID[:12], err)
+			}
+			deletedPacks = append(deletedPacks, packID)
+			deleted++
 			continue
 		}
-		fi, err := r.backend.Stat(ctx, backend.Handle{Type: backend.TypeData, Name: packID})
-		if err == nil {
-			freed += fi.Size
+
+		if refCount < len(locs) {
+			newLocs, packFreed, rerr := r.repackMixed(ctx, packID, refs)
+			if rerr != nil || len(newLocs) == 0 {
+				continue
+			}
+			r.Index.mu.Lock()
+			for _, loc := range locs {
+				delete(r.Index.blobs, loc.BlobID)
+			}
+			for _, loc := range newLocs {
+				r.Index.blobs[loc.BlobID] = loc
+			}
+			r.Index.mu.Unlock()
+			freed += packFreed
+			deleted++
 		}
-		if err := r.backend.Remove(ctx, backend.Handle{Type: backend.TypeData, Name: packID}); err != nil {
-			return deleted, freed, fmt.Errorf("remove pack %s: %w", packID[:12], err)
-		}
-		deletedPacks = append(deletedPacks, packID)
-		deleted++
 	}
 
-	if len(deletedPacks) == 0 {
+	if len(deletedPacks) == 0 && deleted == 0 {
 		return 0, 0, nil
 	}
 
-	r.Index.mu.Lock()
-	for _, packID := range deletedPacks {
-		for id, loc := range r.Index.blobs {
-			if loc.PackID == packID {
-				delete(r.Index.blobs, id)
+	if len(deletedPacks) > 0 {
+		r.Index.mu.Lock()
+		for _, packID := range deletedPacks {
+			for id, loc := range r.Index.blobs {
+				if loc.PackID == packID {
+					delete(r.Index.blobs, id)
+				}
 			}
 		}
+		r.Index.mu.Unlock()
 	}
-	r.Index.mu.Unlock()
 
 	if err := r.rebuildIndex(ctx); err != nil {
 		return deleted, freed, fmt.Errorf("rebuild index: %w", err)
 	}
 	return deleted, freed, nil
+}
+
+func (r *Repo) repackMixed(ctx context.Context, packID string, refs map[BlobID]bool) ([]PackBlobLocation, int64, error) {
+	entries, err := readPackHeader(ctx, r.backend, r.masterKey, packID)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var totalBytes, wastedBytes int
+	for _, e := range entries {
+		id, _ := ParseBlobID(e.ID)
+		totalBytes += e.Length
+		if !refs[id] {
+			wastedBytes += e.Length
+		}
+	}
+	if totalBytes == 0 || float64(wastedBytes)/float64(totalBytes) <= repackWasteThreshold {
+		return nil, 0, nil
+	}
+
+	rc, err := r.backend.Load(ctx, backend.Handle{Type: backend.TypeData, Name: packID})
+	if err != nil {
+		return nil, 0, err
+	}
+	packBytes, err := io.ReadAll(rc)
+	rc.Close()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	packer := NewPacker(r.masterKey)
+	for _, e := range entries {
+		id, err := ParseBlobID(e.ID)
+		if err != nil || !refs[id] {
+			continue
+		}
+		if e.Offset+e.Length > len(packBytes) {
+			return nil, 0, fmt.Errorf("blob out of bounds in pack %s", packID[:12])
+		}
+		enc := make([]byte, e.Length)
+		copy(enc, packBytes[e.Offset:e.Offset+e.Length])
+		packer.AddEncrypted(e.Type, id, enc, e.RawLength)
+	}
+
+	newPackID, newData, newLocs, err := packer.Finalize()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	if err := r.backend.Save(ctx, backend.Handle{Type: backend.TypeData, Name: newPackID}, bytes.NewReader(newData)); err != nil {
+		return nil, 0, fmt.Errorf("save repacked pack: %w", err)
+	}
+
+	fi, statErr := r.backend.Stat(ctx, backend.Handle{Type: backend.TypeData, Name: packID})
+	if err := r.backend.Remove(ctx, backend.Handle{Type: backend.TypeData, Name: packID}); err != nil {
+		return nil, 0, fmt.Errorf("remove old pack %s: %w", packID[:12], err)
+	}
+
+	var oldSize int64
+	if statErr == nil {
+		oldSize = fi.Size
+	} else {
+		oldSize = int64(len(packBytes))
+	}
+	freed := oldSize - int64(len(newData))
+
+	return newLocs, freed, nil
 }
 
 // rebuildIndex replaces all index files with one consolidated file.
@@ -117,7 +205,6 @@ func (r *Repo) rebuildIndex(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	// Write new consolidated index first
 	if err := r.Index.Save(ctx, r.backend, r.masterKey); err != nil {
 		return err
 	}
@@ -145,7 +232,6 @@ func readPackHeader(ctx context.Context, b backend.Backend, masterKey crypto.Mas
 		return nil, fmt.Errorf("backend does not support seeking")
 	}
 
-	// Read last 4 bytes to get header length
 	if _, err := rs.Seek(-4, io.SeekEnd); err != nil {
 		return nil, fmt.Errorf("seek to header length: %w", err)
 	}
