@@ -268,7 +268,6 @@ func saveTree(ctx context.Context, r *repo.Repo, tree repo.Tree) (repo.BlobID, e
 	return id, err
 }
 
-// dryRunScan walks src and reports dedup stats without writing anything.
 func dryRunScan(r *repo.Repo, path string, stats *backupStats) error {
 	return filepath.WalkDir(path, func(p string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() {

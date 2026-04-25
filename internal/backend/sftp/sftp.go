@@ -23,8 +23,7 @@ type SFTP struct {
 	root   string
 }
 
-// ParseURL parses sftp://user@host[:port]/path[/prefix].
-// Authentication: SSH_AUTH_SOCK (agent) or ~/.ssh/id_* keys.
+// sftp://user@host[:port]/path[/prefix]; auth via SSH_AUTH_SOCK or ~/.ssh/id_* keys
 func ParseURL(rawURL string) (*SFTP, error) {
 	s := strings.TrimPrefix(rawURL, "sftp://")
 

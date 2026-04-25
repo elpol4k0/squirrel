@@ -18,8 +18,7 @@ type GCS struct {
 	prefix string
 }
 
-// ParseURL parses gs:bucket[/prefix].
-// Credentials from GOOGLE_APPLICATION_CREDENTIALS or Application Default Credentials.
+// gs:bucket[/prefix]; creds from GOOGLE_APPLICATION_CREDENTIALS or ADC
 func ParseURL(rawURL string) (*GCS, error) {
 	s := strings.TrimPrefix(rawURL, "gs:")
 	s = strings.TrimPrefix(s, "//")

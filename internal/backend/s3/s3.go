@@ -17,7 +17,7 @@ type S3 struct {
 	prefix string // optional key prefix inside the bucket
 }
 
-// Credentials from AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN.
+// creds: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN
 func New(endpoint, bucket, prefix string, useSSL bool) (*S3, error) {
 	client, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewEnvAWS(),
@@ -29,8 +29,7 @@ func New(endpoint, bucket, prefix string, useSSL bool) (*S3, error) {
 	return &S3{client: client, bucket: bucket, prefix: strings.TrimRight(prefix, "/")}, nil
 }
 
-// s3:bucket/prefix          – AWS S3 (s3.amazonaws.com), SSL
-// s3:endpoint/bucket/prefix – custom endpoint (MinIO, Backblaze B2, etc.)
+// s3:bucket/prefix or s3:endpoint/bucket/prefix (custom endpoint: MinIO, Backblaze B2…)
 func ParseURL(rawURL string) (*S3, error) {
 	s := strings.TrimPrefix(rawURL, "s3:")
 	s = strings.TrimPrefix(s, "//")

@@ -19,9 +19,7 @@ type Azure struct {
 	prefix    string
 }
 
-// ParseURL parses az:container[/prefix] or az:account.blob.core.windows.net/container[/prefix].
-// Credentials from AZURE_STORAGE_CONNECTION_STRING or
-// AZURE_STORAGE_ACCOUNT + AZURE_STORAGE_KEY.
+// az:container[/prefix] or az:account.blob.core.windows.net/container[/prefix]; creds: AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_ACCOUNT+AZURE_STORAGE_KEY
 func ParseURL(rawURL string) (*Azure, error) {
 	s := strings.TrimPrefix(rawURL, "az:")
 	s = strings.TrimPrefix(s, "//")

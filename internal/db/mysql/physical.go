@@ -14,7 +14,6 @@ import (
 	"github.com/elpol4k0/squirrel/internal/repo"
 )
 
-// Briefly locks all tables for a consistent snapshot + binlog position, then streams all files.
 func (a *Adapter) PhysicalBackup(ctx context.Context, r *repo.Repo, dataDir string) (gomysql.Position, string, string, error) {
 	db, err := sql.Open("mysql", a.dsn)
 	if err != nil {

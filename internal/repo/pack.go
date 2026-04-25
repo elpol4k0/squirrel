@@ -21,7 +21,7 @@ const (
 	BlobTree BlobType = 1
 )
 
-// BlobID is SHA-256 of the plaintext. Content-addressed → same data, same ID → dedup.
+// SHA-256 of plaintext; same content always produces same ID (dedup invariant)
 type BlobID [32]byte
 
 func (b BlobID) String() string { return hex.EncodeToString(b[:]) }
@@ -38,8 +38,7 @@ func ParseBlobID(s string) (BlobID, error) {
 
 func computeID(data []byte) BlobID { return sha256.Sum256(data) }
 
-// packfile layout: [blob_0] [blob_1] … [encrypted_header] [header_len: 4B LE]
-// each region: Seal(masterKey, payload) = nonce(12) || ciphertext || tag(16)
+// layout: [blob_0]…[blob_N][encrypted_header][header_len:4B LE]; each region: nonce(12)||ciphertext||tag(16)
 
 type blobEntry struct {
 	ID        string   `json:"id"`
@@ -83,8 +82,7 @@ func (p *Packer) Add(blobType BlobType, plaintext []byte) (BlobID, error) {
 	return id, nil
 }
 
-// AddEncrypted appends an already-compressed-and-sealed blob to the pack.
-// The caller must ensure enc was produced from data of rawLen bytes.
+// enc must be Seal(Compress(plaintext)) where plaintext had rawLen bytes
 func (p *Packer) AddEncrypted(blobType BlobType, id BlobID, enc []byte, rawLen int) {
 	offset := p.buf.Len()
 	p.buf.Write(enc)
@@ -97,8 +95,7 @@ func (p *Packer) AddEncrypted(blobType BlobType, id BlobID, enc []byte, rawLen i
 	})
 }
 
-// Finalize seals the pack and returns its ID, a copy of the raw bytes, and blob locations.
-// The caller is responsible for uploading the bytes to the backend.
+// caller is responsible for uploading the returned bytes to the backend
 func (p *Packer) Finalize() (packID string, data []byte, locs []PackBlobLocation, err error) {
 	if len(p.blobs) == 0 {
 		return "", nil, nil, nil

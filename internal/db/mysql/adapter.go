@@ -33,7 +33,7 @@ type Adapter struct {
 	pass string
 }
 
-// Expected format: user:pass@tcp(host:port)/dbname or mysql://user:pass@host/db
+// DSN: user:pass@tcp(host:port)/dbname or mysql://user:pass@host/db
 func New(dsn string) (*Adapter, error) {
 	host, port, user, pass, err := parseDSN(dsn)
 	if err != nil {
@@ -59,7 +59,6 @@ func (a *Adapter) BinlogPosition(ctx context.Context) (gomysql.Position, string,
 	return gomysql.Position{Name: file, Pos: pos}, executedGTIDSet, nil
 }
 
-// Returns the binlog position at dump time and the tree blob ID.
 func (a *Adapter) Dump(ctx context.Context, r *repo.Repo, databases []string) (gomysql.Position, string, string, error) {
 	db, err := sql.Open("mysql", a.dsn)
 	if err != nil {
@@ -113,7 +112,6 @@ func (a *Adapter) Dump(ctx context.Context, r *repo.Repo, databases []string) (g
 	return binlogPos, executedGTIDSet, treeID, nil
 }
 
-// Runs until ctx is cancelled. Returns flushed segments.
 func (a *Adapter) StreamBinlog(ctx context.Context, r *repo.Repo, pos gomysql.Position) ([]BinlogSegment, error) {
 	cfg := replication.BinlogSyncerConfig{
 		ServerID: uint32(rand.Int31n(100000) + 1000), //nolint:gosec

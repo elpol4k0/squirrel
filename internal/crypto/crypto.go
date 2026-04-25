@@ -48,7 +48,7 @@ func GenerateSalt() ([]byte, error) {
 	return salt, nil
 }
 
-// Seal encrypts with AES-256-GCM; output is nonce || ciphertext || tag.
+// AES-256-GCM; output layout: nonce(12) || ciphertext || tag(16)
 func Seal(key MasterKey, plaintext []byte) ([]byte, error) {
 	block, err := aes.NewCipher(key[:])
 	if err != nil {

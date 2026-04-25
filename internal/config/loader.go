@@ -11,7 +11,7 @@ import (
 	"github.com/knadh/koanf/v2"
 )
 
-// Secrets in ${provider:path} syntax are resolved before returning.
+// resolves ${provider:path} secrets before returning
 func Load(path string) (*Config, error) {
 	k := koanf.New(".")
 
@@ -92,7 +92,6 @@ func resolveSecrets(cfg *Config) error {
 	return nil
 }
 
-// returns s unchanged if it doesn't start with ${.
 func resolveToken(s string) (string, error) {
 	if !strings.HasPrefix(s, "${") || !strings.HasSuffix(s, "}") {
 		return s, nil

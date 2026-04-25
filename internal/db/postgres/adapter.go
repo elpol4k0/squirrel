@@ -39,7 +39,6 @@ func (a *Adapter) IdentifySystem(ctx context.Context) (pglogrepl.IdentifySystemR
 	return pglogrepl.IdentifySystem(ctx, conn)
 }
 
-// Returns start LSN, system identifier, and the tree blob ID for restore.
 func (a *Adapter) BaseBackup(ctx context.Context, r *repo.Repo) (pglogrepl.LSN, pglogrepl.IdentifySystemResult, string, error) {
 	conn, err := a.replConn(ctx)
 	if err != nil {
@@ -123,7 +122,6 @@ func (a *Adapter) CreateSlot(ctx context.Context, slotName string) error {
 	return nil
 }
 
-// Runs until ctx is cancelled; returns all flushed segments.
 func (a *Adapter) StreamWAL(ctx context.Context, r *repo.Repo, slotName string, startLSN pglogrepl.LSN, timelineID int32) ([]WALSegment, error) {
 	conn, err := a.replConn(ctx)
 	if err != nil {

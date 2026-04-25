@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// A backup of the original is written to <path>.bak.<timestamp> before any change.
+// writes <path>.bak.<timestamp> before touching the file
 func Migrate(path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -43,8 +43,7 @@ func Migrate(path string) error {
 	return nil
 }
 
-// applyMigration applies the migration from version `from` to `from+1`.
-// Add cases here as the config schema evolves.
+// add cases here as the config schema evolves
 func applyMigration(path string, from int) error {
 	switch from {
 	// case 1:

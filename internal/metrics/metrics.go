@@ -48,7 +48,6 @@ func Add(name string, delta float64, labels map[string]string, help string) {
 	entries = append(entries, entry{name: name, labels: labels, value: delta, help: help, kind: "counter"})
 }
 
-// Handler returns an http.Handler that serves Prometheus text format.
 func Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.RLock()
@@ -66,7 +65,6 @@ func Handler() http.Handler {
 	})
 }
 
-// Serve starts a Prometheus metrics HTTP server on addr (e.g. ":9090").
 func Serve(addr string) error {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", Handler())

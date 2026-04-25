@@ -14,7 +14,7 @@ import (
 
 type RunFunc func(ctx context.Context, cfg *config.Config, profileName string) error
 
-// Blocks until SIGINT/SIGTERM. SIGHUP triggers a config reload without restart.
+// SIGHUP reloads config without restart
 func Run(cfgPath string, profiles []string, runFn RunFunc) error {
 	slog.Info("squirrel daemon starting")
 

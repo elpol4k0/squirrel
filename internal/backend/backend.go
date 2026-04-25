@@ -25,7 +25,7 @@ type FileInfo struct {
 	Size int64
 }
 
-// Backend is the storage abstraction. Save must be atomic.
+// storage abstraction; Save must be atomic (write-then-rename or equivalent)
 type Backend interface {
 	Save(ctx context.Context, h Handle, rd io.Reader) error
 	Load(ctx context.Context, h Handle) (io.ReadCloser, error)

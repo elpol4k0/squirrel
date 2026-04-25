@@ -104,8 +104,6 @@ func runPGRestore(repoURL, snapID, targetDir, walDir, pitrTime, pitrLSN string) 
 	return nil
 }
 
-// collectWALSnapshots returns all postgres-wal snapshots that are newer than
-// baseSnapID and belong to the same system (same system_id).
 func collectWALSnapshots(ctx context.Context, r *repo.Repo, baseSnapID, systemID string) ([]*repo.Snapshot, error) {
 	all, err := r.ListSnapshots(ctx)
 	if err != nil {

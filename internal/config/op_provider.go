@@ -7,8 +7,7 @@ import (
 	"strings"
 )
 
-// resolveOp reads a secret from 1Password using the `op` CLI.
-// uri must be a full op:// URI, e.g. op://vault/item/field.
+// uri must be a full op:// reference, e.g. op://vault/item/field
 func resolveOp(uri string) (string, error) {
 	out, err := exec.Command("op", "read", uri).Output()
 	if err != nil {

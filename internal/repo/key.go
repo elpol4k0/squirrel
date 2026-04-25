@@ -73,8 +73,7 @@ func unlockKey(ctx context.Context, b backend.Backend, password []byte) (crypto.
 	return crypto.MasterKey{}, fmt.Errorf("wrong password or corrupt key files")
 }
 
-// AddKey wraps the repository's master key with a new password and stores it as an additional key file.
-// Returns the new key file ID. The repository remains accessible via all previously added passwords too.
+// all previously added passwords remain valid after this call
 func (r *Repo) AddKey(ctx context.Context, password []byte) (string, error) {
 	salt, err := crypto.GenerateSalt()
 	if err != nil {
@@ -96,12 +95,11 @@ func (r *Repo) AddKey(ctx context.Context, password []byte) (string, error) {
 	return id, nil
 }
 
-// ListKeys returns the IDs of all key files present in the repository.
 func (r *Repo) ListKeys(ctx context.Context) ([]string, error) {
 	return r.backend.List(ctx, backend.TypeKey)
 }
 
-// RemoveKey deletes a key file by its ID. Refuses to remove the last key to prevent lockout.
+// refuses if only one key remains – prevents lockout
 func (r *Repo) RemoveKey(ctx context.Context, keyID string) error {
 	keys, err := r.backend.List(ctx, backend.TypeKey)
 	if err != nil {

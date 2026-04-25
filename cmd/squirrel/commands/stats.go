@@ -119,7 +119,6 @@ func runStats(repoPath string, jsonOut, dedup bool) error {
 	return nil
 }
 
-// sumTreeSize recursively sums the file sizes of all nodes in a tree.
 func sumTreeSize(ctx context.Context, r *repo.Repo, tree *repo.Tree) int64 {
 	var total int64
 	for _, node := range tree.Nodes {

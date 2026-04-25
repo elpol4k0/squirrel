@@ -12,9 +12,7 @@ import (
 	"filippo.io/age/armor"
 )
 
-// resolveAge decrypts an age-encrypted file and returns its trimmed plaintext content.
-// The identity (private key) is read from AGE_IDENTITY_FILE or ~/.config/age/keys.txt.
-// Both armored (PEM-like) and binary age formats are supported.
+// identity from AGE_IDENTITY_FILE or ~/.config/age/keys.txt; armored and binary formats both accepted
 func resolveAge(path string) (string, error) {
 	identityPath := os.Getenv("AGE_IDENTITY_FILE")
 	if identityPath == "" {

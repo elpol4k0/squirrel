@@ -116,7 +116,7 @@ func resolveProfile(cfg *Config, name string, visited map[string]bool) (ProfileC
 	return mergeProfiles(parent, p), nil
 }
 
-// mergeProfiles overlays child onto parent: non-zero child fields win.
+// non-zero child fields win over parent
 func mergeProfiles(parent, child ProfileCfg) ProfileCfg {
 	result := parent
 	if child.Repository != "" {

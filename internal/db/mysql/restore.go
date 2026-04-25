@@ -51,7 +51,7 @@ func execBlobsAsSQL(ctx context.Context, r *repo.Repo, db *sql.DB, blobIDs []str
 	return nil
 }
 
-// Files can then be replayed with mysqlbinlog.
+// files can be replayed later with mysqlbinlog
 func ExtractBinlog(ctx context.Context, r *repo.Repo, binlogSnaps []*repo.Snapshot, binlogDir string) error {
 	if err := os.MkdirAll(binlogDir, 0o700); err != nil {
 		return err

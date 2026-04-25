@@ -15,7 +15,6 @@ import (
 	"github.com/elpol4k0/squirrel/internal/repo"
 )
 
-// Blocks until the filesystem is unmounted (or ctx is cancelled).
 func Mount(ctx context.Context, r *repo.Repo, snapID, mountPoint string) error {
 	snap, err := r.FindSnapshot(ctx, snapID)
 	if err != nil {

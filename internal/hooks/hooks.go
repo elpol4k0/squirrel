@@ -13,7 +13,7 @@ import (
 	"github.com/elpol4k0/squirrel/internal/config"
 )
 
-// Errors are logged but do not stop – all actions run regardless of individual failures.
+// errors are logged but don't abort – all hooks run regardless of failures
 func Run(ctx context.Context, actions []config.HookAction, env map[string]string) error {
 	var errs []string
 	for _, a := range actions {

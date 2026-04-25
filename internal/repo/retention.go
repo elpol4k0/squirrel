@@ -13,7 +13,7 @@ type RetentionPolicy struct {
 	KeepYearly  int
 }
 
-// Apply returns two slices: keep and remove, given a time-sorted (oldest first) snapshot list.
+// snaps must be time-sorted oldest-first
 func (p RetentionPolicy) Apply(snaps []*Snapshot) (keep, remove []*Snapshot) {
 	if len(snaps) == 0 {
 		return

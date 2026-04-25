@@ -30,7 +30,7 @@ func resolveSops(path string) (string, error) {
 	return strings.TrimRight(out.String(), "\r\n"), nil
 }
 
-// dotPathToJQ converts "db.postgres.password" to '["db"]["postgres"]["password"]' for sops --extract.
+// "db.postgres.password" → '["db"]["postgres"]["password"]' for sops --extract
 func dotPathToJQ(dotPath string) string {
 	parts := strings.Split(dotPath, ".")
 	var sb strings.Builder

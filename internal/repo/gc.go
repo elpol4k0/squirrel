@@ -127,7 +127,7 @@ func (r *Repo) rebuildIndex(ctx context.Context) error {
 	return nil
 }
 
-// Call Prune afterwards to free the associated data blobs.
+// caller must Prune afterwards to free the associated data blobs
 func (r *Repo) DeleteSnapshot(ctx context.Context, id string) error {
 	return r.backend.Remove(ctx, backend.Handle{Type: backend.TypeSnapshot, Name: id})
 }

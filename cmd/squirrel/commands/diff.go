@@ -105,7 +105,6 @@ func runDiff(repoURL, idA, idB string, statOnly bool) error {
 	return nil
 }
 
-// flattenTree returns a path→TreeNode map for all files in the tree recursively.
 func flattenTree(ctx context.Context, r *repo.Repo, treeID, prefix string) (map[string]repo.TreeNode, error) {
 	tree, err := r.LoadTree(ctx, treeID)
 	if err != nil {
