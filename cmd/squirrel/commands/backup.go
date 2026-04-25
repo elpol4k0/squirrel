@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -49,7 +48,7 @@ func init() {
 	backupCmd.Flags().BoolVar(&backupDryRun, "dry-run", false, "Show what would be uploaded without writing anything")
 	backupCmd.Flags().StringArrayVar(&backupTags, "tag", nil, "Tags to attach to the snapshot (repeatable)")
 	backupCmd.Flags().IntVar(&backupParallel, "parallel", 0, "Number of parallel file uploads (0 = number of CPUs)")
-	backupCmd.Flags().MarkHidden("file")
+	backupCmd.Flags().MarkHidden("file") //nolint:errcheck
 }
 
 type backupStats struct {
@@ -321,13 +320,4 @@ func humanBytes(n int64) string {
 	default:
 		return fmt.Sprintf("%d B", n)
 	}
-}
-
-func marshalTree(t repo.Tree) ([]byte, error) {
-	var buf bytes.Buffer
-	enc := newJSONEncoder(&buf)
-	if err := enc.Encode(t); err != nil {
-		return nil, fmt.Errorf("marshal tree: %w", err)
-	}
-	return buf.Bytes(), nil
 }

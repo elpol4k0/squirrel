@@ -182,7 +182,7 @@ func extractTAR(rd io.Reader, targetDir string) error {
 			if err := os.MkdirAll(target, os.FileMode(hdr.Mode)|0o700); err != nil {
 				return err
 			}
-		case tar.TypeReg, tar.TypeRegA:
+		case tar.TypeReg:
 			if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
 				return err
 			}

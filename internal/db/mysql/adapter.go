@@ -113,13 +113,13 @@ func (a *Adapter) Dump(ctx context.Context, r *repo.Repo, databases []string) (g
 	if len(databases) == 0 {
 		databases, err = listDatabases(ctx, tx)
 		if err != nil {
-			tx.Rollback()
+			tx.Rollback() //nolint:errcheck
 			return gomysql.Position{}, "", "", err
 		}
 	}
 
 	treeID, err := dumpDatabases(ctx, r, tx, databases)
-	tx.Rollback()
+	tx.Rollback() //nolint:errcheck
 	if err != nil {
 		return gomysql.Position{}, "", "", err
 	}

@@ -170,28 +170,6 @@ func cronToSystemd(cron string) string {
 	return cron
 }
 
-const launchdTmpl = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>io.squirrel.{{.Profile}}</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>{{.BinaryPath}}</string>
-    <string>run</string>
-    <string>{{.Profile}}</string>
-    <string>--config</string>
-    <string>{{.ConfigPath}}</string>
-  </array>
-  <key>StartCalendarInterval</key>
-  {{cronToLaunchd .Schedule}}
-  <key>RunAtLoad</key>
-  <false/>
-</dict>
-</plist>
-`
-
 func launchdAgentsDir() string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, "Library", "LaunchAgents")

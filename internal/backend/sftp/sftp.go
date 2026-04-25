@@ -111,7 +111,7 @@ func (s *SFTP) Save(_ context.Context, h backend.Handle, rd io.Reader) error {
 	}
 	if _, err := io.Copy(f, rd); err != nil {
 		f.Close()
-		s.client.Remove(tmp)
+		s.client.Remove(tmp) //nolint:errcheck
 		return fmt.Errorf("sftp write: %w", err)
 	}
 	f.Close()

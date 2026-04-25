@@ -209,7 +209,7 @@ func (r *Repo) rebuildIndex(ctx context.Context) error {
 		return err
 	}
 	for _, name := range names {
-		r.backend.Remove(ctx, backend.Handle{Type: backend.TypeIndex, Name: name})
+		r.backend.Remove(ctx, backend.Handle{Type: backend.TypeIndex, Name: name}) //nolint:errcheck
 	}
 	return nil
 }
