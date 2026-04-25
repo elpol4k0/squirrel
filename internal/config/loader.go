@@ -100,6 +100,11 @@ func resolveToken(s string) (string, error) {
 	inner := s[2 : len(s)-1]
 	provider, path, _ := strings.Cut(inner, ":")
 
+	// 1Password native URI: ${op://vault/item/field}
+	if strings.HasPrefix(inner, "op://") {
+		return resolveOp(inner)
+	}
+
 	switch provider {
 	case "env":
 		v := os.Getenv(path)
@@ -141,7 +146,11 @@ func resolveToken(s string) (string, error) {
 	case "age":
 		return resolveAge(path)
 
+	case "op":
+		// op://vault/item/field was already handled above; this catches malformed tokens like ${op:...}
+		return resolveOp("op://" + path)
+
 	default:
-		return "", fmt.Errorf("unknown secret provider %q (available: env, file, keyring, cmd, vault, sops, age)", provider)
+		return "", fmt.Errorf("unknown secret provider %q (available: env, file, keyring, cmd, vault, sops, age, op)", provider)
 	}
 }

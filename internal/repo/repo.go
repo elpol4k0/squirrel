@@ -1,12 +1,14 @@
 package repo
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/elpol4k0/squirrel/internal/backend"
 	"github.com/elpol4k0/squirrel/internal/backend/azure"
@@ -17,7 +19,10 @@ import (
 	"github.com/elpol4k0/squirrel/internal/crypto"
 )
 
-const maxPackSize = 128 * 1024 * 1024
+const (
+	maxPackSize   = 128 * 1024 * 1024
+	uploadWorkers = 4
+)
 
 var repoSubdirs = []string{"keys", "data", "index", "snapshots", "wal", "locks"}
 
@@ -33,8 +38,13 @@ type Repo struct {
 	Index     *Index
 	backend   backend.Backend
 	packer    *Packer
-	// pending: blobs added to current packer but not yet in Index; needed for within-session dedup
+	// blobs added to current packer but not yet in Index; needed for within-session dedup
 	pending map[BlobID]struct{}
+
+	uploadSem   chan struct{}
+	uploadWg    sync.WaitGroup
+	uploadErrMu sync.Mutex
+	uploadErr   error
 }
 
 func openBackend(url string) (backend.Backend, error) {
@@ -148,6 +158,7 @@ func Open(url string, password []byte) (*Repo, error) {
 		backend:   b,
 		packer:    NewPacker(masterKey),
 		pending:   make(map[BlobID]struct{}),
+		uploadSem: make(chan struct{}, uploadWorkers),
 	}
 	if err := r.Index.Load(ctx, b, masterKey); err != nil {
 		return nil, fmt.Errorf("load index: %w", err)
@@ -179,6 +190,13 @@ func (r *Repo) Flush(ctx context.Context) error {
 	if err := r.flushPacker(ctx); err != nil {
 		return err
 	}
+	r.uploadWg.Wait()
+	r.uploadErrMu.Lock()
+	err := r.uploadErr
+	r.uploadErrMu.Unlock()
+	if err != nil {
+		return err
+	}
 	return r.Index.Save(ctx, r.backend, r.masterKey)
 }
 
@@ -186,13 +204,28 @@ func (r *Repo) flushPacker(ctx context.Context) error {
 	if r.packer.Len() == 0 {
 		return nil
 	}
-	_, locs, err := r.packer.Flush(ctx, r.backend)
+	packID, data, locs, err := r.packer.Finalize()
 	if err != nil {
 		return err
 	}
 	r.Index.Add(locs)
 	r.packer = NewPacker(r.masterKey)
 	r.pending = make(map[BlobID]struct{})
+
+	r.uploadWg.Add(1)
+	r.uploadSem <- struct{}{}
+	go func(id string, buf []byte) {
+		defer r.uploadWg.Done()
+		defer func() { <-r.uploadSem }()
+		if err := r.backend.Save(ctx, backend.Handle{Type: backend.TypeData, Name: id}, bytes.NewReader(buf)); err != nil {
+			r.uploadErrMu.Lock()
+			if r.uploadErr == nil {
+				r.uploadErr = fmt.Errorf("upload pack %s: %w", id[:12], err)
+			}
+			r.uploadErrMu.Unlock()
+		}
+	}(packID, data)
+
 	return nil
 }
 

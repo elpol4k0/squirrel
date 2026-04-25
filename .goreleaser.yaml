@@ -1,0 +1,87 @@
+version: 2
+
+project_name: squirrel
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: squirrel
+    main: ./cmd/squirrel
+    binary: squirrel
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
+archives:
+  - id: squirrel
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: elpol4k0
+    name: squirrel
+  draft: false
+  prerelease: auto
+
+dockers:
+  - image_templates:
+      - "ghcr.io/elpol4k0/squirrel:{{ .Tag }}-amd64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.revision={{ .Commit }}"
+
+  - image_templates:
+      - "ghcr.io/elpol4k0/squirrel:{{ .Tag }}-arm64"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.revision={{ .Commit }}"
+
+docker_manifests:
+  - name_template: "ghcr.io/elpol4k0/squirrel:{{ .Tag }}"
+    image_templates:
+      - "ghcr.io/elpol4k0/squirrel:{{ .Tag }}-amd64"
+      - "ghcr.io/elpol4k0/squirrel:{{ .Tag }}-arm64"
+
+  - name_template: "ghcr.io/elpol4k0/squirrel:latest"
+    image_templates:
+      - "ghcr.io/elpol4k0/squirrel:{{ .Tag }}-amd64"
+      - "ghcr.io/elpol4k0/squirrel:{{ .Tag }}-arm64"

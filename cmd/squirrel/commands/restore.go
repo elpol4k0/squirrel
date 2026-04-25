@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/elpol4k0/squirrel/internal/progress"
 	"github.com/elpol4k0/squirrel/internal/repo"
 	"github.com/spf13/cobra"
 )
@@ -65,20 +66,27 @@ func runRestore(snapshotID, repoPath, targetDir string) error {
 		return fmt.Errorf("create target dir: %w", err)
 	}
 
-	var totalBytes int64
+	var totalSize int64
 	for _, node := range tree.Nodes {
-		if err := restoreNode(ctx, r, node, targetDir); err != nil {
-			return fmt.Errorf("restore %s: %w", node.Name, err)
-		}
-		totalBytes += node.Size
-		fmt.Printf("  restored %s (%s)\n", node.Name, humanBytes(node.Size))
+		totalSize += node.Size
 	}
 
-	fmt.Printf("\nDone – restored %d file(s), %s total\n", len(tree.Nodes), humanBytes(totalBytes))
+	bar := progress.NewKnown("restore", totalSize)
+	var restoredBytes int64
+	for _, node := range tree.Nodes {
+		if err := restoreNode(ctx, r, node, targetDir, bar); err != nil {
+			bar.Finish()
+			return fmt.Errorf("restore %s: %w", node.Name, err)
+		}
+		restoredBytes += node.Size
+	}
+	bar.Finish()
+
+	fmt.Printf("\nDone – restored %d file(s), %s total\n", len(tree.Nodes), humanBytes(restoredBytes))
 	return nil
 }
 
-func restoreNode(ctx context.Context, r *repo.Repo, node repo.TreeNode, targetDir string) error {
+func restoreNode(ctx context.Context, r *repo.Repo, node repo.TreeNode, targetDir string, bar *progress.Bar) error {
 	if node.Type != "file" {
 		return fmt.Errorf("unsupported node type %q (only \"file\" supported for now)", node.Type)
 	}
@@ -106,6 +114,7 @@ func restoreNode(ctx context.Context, r *repo.Repo, node repo.TreeNode, targetDi
 		if _, err := f.Write(data); err != nil {
 			return fmt.Errorf("write: %w", err)
 		}
+		bar.Add(len(data))
 	}
 	return nil
 }

@@ -91,33 +91,45 @@ func (p *Packer) Add(blobType BlobType, plaintext []byte) (BlobID, error) {
 	return id, nil
 }
 
-func (p *Packer) Flush(ctx context.Context, b backend.Backend) (string, []PackBlobLocation, error) {
+// Finalize seals the pack and returns its ID, a copy of the raw bytes, and blob locations.
+// The caller is responsible for uploading the bytes to the backend.
+func (p *Packer) Finalize() (packID string, data []byte, locs []PackBlobLocation, err error) {
 	if len(p.blobs) == 0 {
-		return "", nil, nil
+		return "", nil, nil, nil
 	}
 	hdrJSON, err := json.Marshal(packHeader{Blobs: p.blobs})
 	if err != nil {
-		return "", nil, fmt.Errorf("marshal pack header: %w", err)
+		return "", nil, nil, fmt.Errorf("marshal pack header: %w", err)
 	}
 	encHdr, err := crypto.Seal(p.masterKey, hdrJSON)
 	if err != nil {
-		return "", nil, fmt.Errorf("seal pack header: %w", err)
+		return "", nil, nil, fmt.Errorf("seal pack header: %w", err)
 	}
 	p.buf.Write(encHdr)
 	var lenBuf [4]byte
 	binary.LittleEndian.PutUint32(lenBuf[:], uint32(len(encHdr)))
 	p.buf.Write(lenBuf[:])
 
-	packHash := sha256.Sum256(p.buf.Bytes())
-	packID := hex.EncodeToString(packHash[:])
+	h := sha256.Sum256(p.buf.Bytes())
+	packID = hex.EncodeToString(h[:])
+	data = make([]byte, p.buf.Len())
+	copy(data, p.buf.Bytes())
 
-	if err := b.Save(ctx, backend.Handle{Type: backend.TypeData, Name: packID}, bytes.NewReader(p.buf.Bytes())); err != nil {
-		return "", nil, fmt.Errorf("save packfile: %w", err)
-	}
-	locs := make([]PackBlobLocation, len(p.blobs))
+	locs = make([]PackBlobLocation, len(p.blobs))
 	for i, blob := range p.blobs {
 		id, _ := ParseBlobID(blob.ID)
 		locs[i] = PackBlobLocation{BlobID: id, PackID: packID, Offset: blob.Offset, Length: blob.Length}
+	}
+	return packID, data, locs, nil
+}
+
+func (p *Packer) Flush(ctx context.Context, b backend.Backend) (string, []PackBlobLocation, error) {
+	packID, data, locs, err := p.Finalize()
+	if err != nil || packID == "" {
+		return packID, locs, err
+	}
+	if err := b.Save(ctx, backend.Handle{Type: backend.TypeData, Name: packID}, bytes.NewReader(data)); err != nil {
+		return "", nil, fmt.Errorf("save packfile: %w", err)
 	}
 	return packID, locs, nil
 }

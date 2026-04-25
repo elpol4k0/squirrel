@@ -110,7 +110,7 @@
 - [ ] End-to-End-Test: backup → prune → restore → verify
 
 ### Performance
-- [ ] Parallele Blob-Uploads (Worker-Pool im Packer)
+- [x] Parallele Blob-Uploads (Worker-Pool im Packer, 4 concurrent uploads)
 - [ ] Parallele Chunk-Verarbeitung beim Backup
 - [ ] Streaming-Index (Memory-mapped oder BoltDB/Pebble für TB-Repos)
 - [ ] Partial-Pack-Repack beim Prune (statt ganzen Pack löschen)
@@ -128,22 +128,23 @@
 
 ### Config & Security
 - [x] `age`-Secret-Provider (`${age:encrypted_file}`)
-- [ ] 1Password Secret-Provider (via `op` CLI, eigene Syntax `${op://vault/item/field}`)
+- [x] 1Password Secret-Provider (`${op://vault/item/field}` via `op` CLI)
 - [x] Multi-Key-Support pro Repository (wie restic – mehrere `keys/`)
 - [x] `squirrel key add/remove/list` für Key-Verwaltung
 - [x] `squirrel secrets set/list/delete` für OS-Keyring-Verwaltung
 
 ### CLI & UX
-- [ ] Progress-Bar in `backup files` und `restore` einbauen
+- [x] Progress-Bar in `backup files` und `restore` einbauen
 - [x] `squirrel stats --repo` – Repository-Statistiken (Größe, Dedup-Ratio, Pack-Anzahl)
 - [x] JSON-Output-Flag (`--json`) für `snapshots` und `stats`
 - [ ] Shell-Completion (bash/zsh/fish) via `cobra` (bereits durch Cobra v1.2+ eingebaut)
 - [x] `squirrel snapshots --latest` – nur neuestes Snapshot zeigen
 
 ### Distribution
-- [ ] `goreleaser` Konfiguration (Multi-Platform Binaries + Docker Images)
-- [ ] GitHub Actions CI (Matrix: PG 14-17, MySQL 8, Linux/macOS/Windows)
-- [ ] Docker Image (`FROM scratch` oder `alpine`)
+- [x] `goreleaser` Konfiguration (Multi-Platform Binaries + Docker Images, `.goreleaser.yaml`)
+- [x] GitHub Actions CI (Matrix: PG 14-17, MySQL 8, Linux/macOS/Windows, `.github/workflows/ci.yml`)
+- [x] GitHub Actions Release (`.github/workflows/release.yml`)
+- [x] Docker Image (`FROM alpine:3.21`, `Dockerfile`)
 - [ ] Homebrew Formula
 - [ ] README.md mit Quickstart, Architecture, Comparison-Table
 

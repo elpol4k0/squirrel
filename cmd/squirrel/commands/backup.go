@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	"github.com/elpol4k0/squirrel/internal/chunker"
+	"github.com/elpol4k0/squirrel/internal/progress"
 	"github.com/elpol4k0/squirrel/internal/repo"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -55,6 +56,7 @@ type backupStats struct {
 	newBytes    int64
 	dedupBytes  int64
 	totalBytes  int64
+	bar         *progress.Bar
 }
 
 func runBackup(repoPath, srcPath string, dryRun bool, tags []string) error {
@@ -73,7 +75,9 @@ func runBackup(repoPath, srcPath string, dryRun bool, tags []string) error {
 		return fmt.Errorf("open repo: %w", err)
 	}
 
+	bar := progress.NewBytes("backup")
 	var stats backupStats
+	stats.bar = bar
 
 	if dryRun {
 		if err := dryRunScan(r, srcPath, &stats); err != nil {
@@ -88,6 +92,7 @@ func runBackup(repoPath, srcPath string, dryRun bool, tags []string) error {
 	}
 
 	treeID, err := backupEntry(ctx, r, srcPath, &stats)
+	bar.Finish()
 	if err != nil {
 		return err
 	}
@@ -192,6 +197,9 @@ func backupFile(ctx context.Context, r *repo.Repo, path string, stats *backupSta
 	err = chunker.Split(f, func(ch chunker.Chunk) error {
 		size += int64(ch.Length)
 		atomic.AddInt64(&stats.totalBytes, int64(ch.Length))
+		if stats.bar != nil {
+			stats.bar.Add(int(ch.Length))
+		}
 
 		id, uploaded, err := r.SaveBlob(ctx, repo.BlobData, ch.Data)
 		if err != nil {
