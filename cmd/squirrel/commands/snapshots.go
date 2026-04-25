@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -21,10 +22,12 @@ var snapshotsCmd = &cobra.Command{
 		host, _ := cmd.Flags().GetString("host")
 		tag, _ := cmd.Flags().GetString("tag")
 		snapType, _ := cmd.Flags().GetString("type")
+		latest, _ := cmd.Flags().GetBool("latest")
+		jsonOut, _ := cmd.Flags().GetBool("json")
 		if repoPath == "" {
 			return fmt.Errorf("--repo is required")
 		}
-		return runSnapshots(repoPath, host, tag, snapType)
+		return runSnapshots(repoPath, host, tag, snapType, latest, jsonOut)
 	},
 }
 
@@ -33,9 +36,11 @@ func init() {
 	snapshotsCmd.Flags().String("host", "", "filter by hostname")
 	snapshotsCmd.Flags().String("tag", "", "filter by tag")
 	snapshotsCmd.Flags().String("type", "", "filter by type (files, postgres-base, postgres-wal, mysql-dump, mysql-binlog, mysql-physical)")
+	snapshotsCmd.Flags().Bool("latest", false, "show only the most recent snapshot")
+	snapshotsCmd.Flags().Bool("json", false, "output as JSON")
 }
 
-func runSnapshots(repoPath, hostFilter, tagFilter, typeFilter string) error {
+func runSnapshots(repoPath, hostFilter, tagFilter, typeFilter string, latest, jsonOut bool) error {
 	password, err := readTerminalPassword("Repository password: ")
 	if err != nil {
 		return err
@@ -64,9 +69,21 @@ func runSnapshots(repoPath, hostFilter, tagFilter, typeFilter string) error {
 		filtered = append(filtered, s)
 	}
 
+	// ListSnapshots already sorts ascending by time; take the last element.
+	if latest && len(filtered) > 0 {
+		filtered = []*repo.Snapshot{filtered[len(filtered)-1]}
+	}
+
 	if len(filtered) == 0 {
 		fmt.Println("no snapshots found")
 		return nil
+	}
+
+	if jsonOut {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		enc.SetEscapeHTML(false)
+		return enc.Encode(filtered)
 	}
 
 	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)

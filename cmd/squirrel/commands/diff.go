@@ -17,18 +17,20 @@ var diffCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		repoPath, _ := cmd.Flags().GetString("repo")
+		statOnly, _ := cmd.Flags().GetBool("stat")
 		if repoPath == "" {
 			return fmt.Errorf("--repo is required")
 		}
-		return runDiff(repoPath, args[0], args[1])
+		return runDiff(repoPath, args[0], args[1], statOnly)
 	},
 }
 
 func init() {
 	diffCmd.Flags().String("repo", "", "repository URL")
+	diffCmd.Flags().Bool("stat", false, "show only summary counts, not individual files")
 }
 
-func runDiff(repoURL, idA, idB string) error {
+func runDiff(repoURL, idA, idB string, statOnly bool) error {
 	password, err := readTerminalPassword("Repository password: ")
 	if err != nil {
 		return err
@@ -61,18 +63,25 @@ func runDiff(repoURL, idA, idB string) error {
 		return fmt.Errorf("read snapshot B: %w", err)
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintf(w, "STATUS\tPATH\tSIZE\n")
-
 	added, removed, changed, unchanged := 0, 0, 0, 0
+
+	var w *tabwriter.Writer
+	if !statOnly {
+		w = tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintf(w, "STATUS\tPATH\tSIZE\n")
+	}
 
 	for path, nodeB := range filesB {
 		nodeA, exists := filesA[path]
 		if !exists {
-			fmt.Fprintf(w, "+\t%s\t%d\n", path, nodeB.Size)
+			if !statOnly {
+				fmt.Fprintf(w, "+\t%s\t%d\n", path, nodeB.Size)
+			}
 			added++
 		} else if !slicesEqual(nodeA.Content, nodeB.Content) {
-			fmt.Fprintf(w, "M\t%s\t%d\n", path, nodeB.Size)
+			if !statOnly {
+				fmt.Fprintf(w, "M\t%s\t%d\n", path, nodeB.Size)
+			}
 			changed++
 		} else {
 			unchanged++
@@ -80,13 +89,18 @@ func runDiff(repoURL, idA, idB string) error {
 	}
 	for path, nodeA := range filesA {
 		if _, exists := filesB[path]; !exists {
-			fmt.Fprintf(w, "-\t%s\t%d\n", path, nodeA.Size)
+			if !statOnly {
+				fmt.Fprintf(w, "-\t%s\t%d\n", path, nodeA.Size)
+			}
 			removed++
 		}
 	}
-	w.Flush()
+	if !statOnly {
+		w.Flush()
+		fmt.Println()
+	}
 
-	fmt.Printf("\n+%d added  -%d removed  M%d modified  =%d unchanged\n",
+	fmt.Printf("+%d added  -%d removed  M%d modified  =%d unchanged\n",
 		added, removed, changed, unchanged)
 	return nil
 }

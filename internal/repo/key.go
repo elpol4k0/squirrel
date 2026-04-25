@@ -73,6 +73,46 @@ func unlockKey(ctx context.Context, b backend.Backend, password []byte) (crypto.
 	return crypto.MasterKey{}, fmt.Errorf("wrong password or corrupt key files")
 }
 
+// AddKey wraps the repository's master key with a new password and stores it as an additional key file.
+// Returns the new key file ID. The repository remains accessible via all previously added passwords too.
+func (r *Repo) AddKey(ctx context.Context, password []byte) (string, error) {
+	salt, err := crypto.GenerateSalt()
+	if err != nil {
+		return "", err
+	}
+	wrappingKey := crypto.DeriveKey(password, salt)
+	enc, err := crypto.Seal(wrappingKey, r.masterKey[:])
+	if err != nil {
+		return "", fmt.Errorf("seal master key: %w", err)
+	}
+	data, err := json.Marshal(keyFile{Salt: salt, Encrypted: enc})
+	if err != nil {
+		return "", fmt.Errorf("marshal key file: %w", err)
+	}
+	id := randomHex(16)
+	if err := r.backend.Save(ctx, backend.Handle{Type: backend.TypeKey, Name: id}, wrapReader(data)); err != nil {
+		return "", fmt.Errorf("save key file: %w", err)
+	}
+	return id, nil
+}
+
+// ListKeys returns the IDs of all key files present in the repository.
+func (r *Repo) ListKeys(ctx context.Context) ([]string, error) {
+	return r.backend.List(ctx, backend.TypeKey)
+}
+
+// RemoveKey deletes a key file by its ID. Refuses to remove the last key to prevent lockout.
+func (r *Repo) RemoveKey(ctx context.Context, keyID string) error {
+	keys, err := r.backend.List(ctx, backend.TypeKey)
+	if err != nil {
+		return fmt.Errorf("list keys: %w", err)
+	}
+	if len(keys) <= 1 {
+		return fmt.Errorf("cannot remove the last key file – that would lock you out of the repository")
+	}
+	return r.backend.Remove(ctx, backend.Handle{Type: backend.TypeKey, Name: keyID})
+}
+
 func randomHex(n int) string {
 	b := make([]byte, n)
 	if _, err := io.ReadFull(rand.Reader, b); err != nil {

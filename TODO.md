@@ -127,18 +127,18 @@
 - [ ] Physisches Restore mit InnoDB-Recovery-Modus-Konfiguration
 
 ### Config & Security
-- [ ] `age`-Secret-Provider (`${age:encrypted_file}`)
+- [x] `age`-Secret-Provider (`${age:encrypted_file}`)
 - [ ] 1Password Secret-Provider (via `op` CLI, eigene Syntax `${op://vault/item/field}`)
-- [ ] Multi-Key-Support pro Repository (wie restic – mehrere `keys/`)
-- [ ] `squirrel key add/remove/list` für Key-Verwaltung
-- [ ] `squirrel secrets set/list` für OS-Keyring-Verwaltung
+- [x] Multi-Key-Support pro Repository (wie restic – mehrere `keys/`)
+- [x] `squirrel key add/remove/list` für Key-Verwaltung
+- [x] `squirrel secrets set/list/delete` für OS-Keyring-Verwaltung
 
 ### CLI & UX
 - [ ] Progress-Bar in `backup files` und `restore` einbauen
-- [ ] `squirrel stats --repo` – Repository-Statistiken (Größe, Dedup-Ratio, Pack-Anzahl)
-- [ ] JSON-Output-Flag (`--json`) für alle Commands (Scripting)
-- [ ] Shell-Completion (bash/zsh/fish) via `cobra`
-- [ ] `squirrel snapshots --latest` – nur neuestes Snapshot zeigen
+- [x] `squirrel stats --repo` – Repository-Statistiken (Größe, Dedup-Ratio, Pack-Anzahl)
+- [x] JSON-Output-Flag (`--json`) für `snapshots` und `stats`
+- [ ] Shell-Completion (bash/zsh/fish) via `cobra` (bereits durch Cobra v1.2+ eingebaut)
+- [x] `squirrel snapshots --latest` – nur neuestes Snapshot zeigen
 
 ### Distribution
 - [ ] `goreleaser` Konfiguration (Multi-Platform Binaries + Docker Images)
@@ -149,6 +149,6 @@
 
 ### Phase 5 Rest
 - [ ] `squirrel mount` auf Windows mit WinFsp (`cgofuse`)
-- [ ] `squirrel diff --stat` – nur Zahlen, keine Dateiliste
+- [x] `squirrel diff --stat` – nur Zahlen, keine Dateiliste
 - [ ] Cross-Snapshot-Dedup-Report (`squirrel stats --dedup`)
 - [ ] FUSE: Zeitstempel + Permissions korrekt aus Snapshot-Metadaten

@@ -138,7 +138,10 @@ func resolveToken(s string) (string, error) {
 	case "sops":
 		return resolveSops(path)
 
+	case "age":
+		return resolveAge(path)
+
 	default:
-		return "", fmt.Errorf("unknown secret provider %q (available: env, file, keyring, cmd, vault, sops)", provider)
+		return "", fmt.Errorf("unknown secret provider %q (available: env, file, keyring, cmd, vault, sops, age)", provider)
 	}
 }

@@ -29,4 +29,7 @@ func init() {
 	rootCmd.AddCommand(selfUpdateCmd)
 	rootCmd.AddCommand(mountCmd)
 	rootCmd.AddCommand(diffCmd)
+	rootCmd.AddCommand(statsCmd)
+	rootCmd.AddCommand(keyCmd)
+	rootCmd.AddCommand(secretsCmd)
 }
