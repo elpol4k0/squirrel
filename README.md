@@ -35,6 +35,19 @@ brew install elpol4k0/tap/squirrel
 go install github.com/elpol4k0/squirrel/cmd/squirrel@latest
 ```
 
+### Windows – Build from source
+
+The `mount` command requires [WinFsp](https://winfsp.dev/) (Windows FUSE).
+Without it, build with CGO disabled — all other commands work fully:
+
+```powershell
+$env:CGO_ENABLED = "0"
+go build -o squirrel.exe .\cmd\squirrel\
+```
+
+Install WinFsp from [winfsp.dev](https://winfsp.dev/) if you need snapshot mounting on Windows.
+After installation, rebuild without the flag to enable `mount`.
+
 ### Docker
 
 ```bash
@@ -247,7 +260,7 @@ A random 256-bit master key is generated at `squirrel init`. It is wrapped with 
 | `squirrel check` | Verify repository integrity |
 | `squirrel diff <a> <b>` | Show diff between two snapshots |
 | `squirrel stats` | Repository statistics and dedup ratio |
-| `squirrel mount <id> <mp>` | Mount snapshot as read-only filesystem |
+| `squirrel mount <id> <mp>` | Mount snapshot as read-only filesystem (Linux/macOS; Windows requires [WinFsp](https://winfsp.dev/)) |
 | `squirrel key add/remove/list` | Manage repository keys |
 | `squirrel secrets set/list/delete` | Manage OS keyring secrets |
 | `squirrel config init/validate/show` | Manage config file |

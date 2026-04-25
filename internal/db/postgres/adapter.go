@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pglogrepl"
@@ -68,8 +70,9 @@ func (a *Adapter) BaseBackup(ctx context.Context, r *repo.Repo) (pglogrepl.LSN, 
 	if err := pglogrepl.NextTableSpace(ctx, conn); err != nil {
 		return 0, sysident, "", fmt.Errorf("next tablespace (base): %w", err)
 	}
-	slog.Info("streaming tablespace", "index", 0, "location", "base")
-	baseRd := &copyDataReader{conn: conn, ctx: ctx}
+	v2 := isV2BackupProtocol(conn)
+	slog.Info("streaming tablespace", "index", 0, "location", "base", "v2proto", v2)
+	baseRd := &copyDataReader{conn: conn, ctx: ctx, v2: v2}
 	baseBlobIDs, err := streamTAR(ctx, r, baseRd, "base")
 	if err != nil {
 		return 0, sysident, "", fmt.Errorf("stream tablespace base: %w", err)
@@ -87,7 +90,7 @@ func (a *Adapter) BaseBackup(ctx context.Context, r *repo.Repo) (pglogrepl.LSN, 
 			return 0, sysident, "", fmt.Errorf("next tablespace %s: %w", ts.Location, err)
 		}
 
-		rd := &copyDataReader{conn: conn, ctx: ctx}
+		rd := &copyDataReader{conn: conn, ctx: ctx, v2: v2}
 		blobIDs, err := streamTAR(ctx, r, rd, ts.Location)
 		if err != nil {
 			return 0, sysident, "", fmt.Errorf("stream tablespace %s: %w", ts.Location, err)
@@ -276,6 +279,7 @@ type copyDataReader struct {
 	ctx  context.Context
 	buf  []byte
 	done bool
+	v2   bool // PostgreSQL 15+: each CopyData has a 1-byte type prefix
 }
 
 func (r *copyDataReader) Read(p []byte) (int, error) {
@@ -294,6 +298,28 @@ func (r *copyDataReader) Read(p []byte) (int, error) {
 		}
 		switch m := msg.(type) {
 		case *pgproto3.CopyData:
+			if r.v2 {
+				if len(m.Data) == 0 {
+					continue
+				}
+				switch m.Data[0] {
+				case 'n': // tablespace header – skip
+					continue
+				case 'e': // end-of-tablespace marker – skip, CopyDone signals EOF
+					continue
+				case 'd': // TAR data – strip the type byte
+					payload := m.Data[1:]
+					if len(payload) == 0 {
+						continue
+					}
+					n := copy(p, payload)
+					if n < len(payload) {
+						r.buf = append(r.buf[:0], payload[n:]...)
+					}
+					return n, nil
+				}
+			}
+			// old protocol (PG 14-): raw TAR bytes with no type prefix
 			n := copy(p, m.Data)
 			if n < len(m.Data) {
 				r.buf = append(r.buf[:0], m.Data[n:]...)
@@ -306,6 +332,19 @@ func (r *copyDataReader) Read(p []byte) (int, error) {
 			return 0, pgconn.ErrorResponseToPgError(m)
 		}
 	}
+}
+
+func isV2BackupProtocol(conn *pgconn.PgConn) bool {
+	ver := conn.ParameterStatus("server_version")
+	dot := strings.IndexByte(ver, '.')
+	if dot <= 0 {
+		return false
+	}
+	major, err := strconv.Atoi(ver[:dot])
+	if err != nil {
+		return false
+	}
+	return major >= 15
 }
 
 func streamTAR(ctx context.Context, r *repo.Repo, rd io.Reader, label string) ([]string, error) {

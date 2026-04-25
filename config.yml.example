@@ -1,0 +1,210 @@
+version: 1
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Named secret providers (optional – referenced below with ${name:key})
+# ──────────────────────────────────────────────────────────────────────────────
+secrets:
+  # Mozilla SOPS encrypted YAML file
+  sops-secrets:
+    type: sops
+    file: /etc/squirrel/secrets.enc.yaml
+
+  # HashiCorp Vault
+  vault-prod:
+    type: vault
+    address: https://vault.example.com
+    token-from: env:VAULT_TOKEN   # or "env:MY_TOKEN"
+
+  # OS keyring (macOS Keychain / GNOME Keyring / Windows Credential Manager)
+  keyring-prod:
+    type: keyring
+    service: squirrel-prod
+
+  # age-encrypted file (whole file is the secret, path is ignored)
+  age-key:
+    type: age
+    file: /etc/squirrel/master.age
+
+  # Plain file
+  file-key:
+    type: file
+    file: /etc/squirrel/repo.key
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Repositories
+# ──────────────────────────────────────────────────────────────────────────────
+repositories:
+  # Local filesystem
+  local:
+    url: /backup/squirrel-repo
+    password: ${env:SQUIRREL_PASSWORD}
+
+  # Amazon S3
+  s3-prod:
+    url: s3:my-bucket/squirrel/prod
+    password: ${sops-secrets:repos/s3-prod/password}
+    env:
+      AWS_ACCESS_KEY_ID: ${env:AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${env:AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: eu-central-1
+
+  # MinIO (S3-compatible)
+  minio:
+    url: s3:squirrel-backups/prod
+    password: ${env:SQUIRREL_PASSWORD}
+    env:
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: ${env:MINIO_SECRET}
+      AWS_ENDPOINT_URL: http://minio.example.com:9000
+
+  # Azure Blob Storage
+  azure:
+    url: az:mycontainer/squirrel
+    password: ${vault-prod:secret/squirrel#azure_repo_password}
+    env:
+      AZURE_STORAGE_ACCOUNT: mystorageaccount
+      AZURE_STORAGE_KEY: ${env:AZURE_STORAGE_KEY}
+
+  # Google Cloud Storage
+  gcs:
+    url: gs:my-gcs-bucket/squirrel
+    password: ${keyring-prod:repo-password}
+    env:
+      GOOGLE_APPLICATION_CREDENTIALS: /etc/squirrel/gcs-sa.json
+
+  # SFTP
+  sftp-offsite:
+    url: sftp://backup@offsite.example.com/backups/squirrel
+    password-file: /etc/squirrel/sftp-repo.key
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Global defaults (applied to all profiles unless overridden)
+# ──────────────────────────────────────────────────────────────────────────────
+defaults:
+  retention:
+    keep-last: 3
+    keep-daily: 7
+    keep-weekly: 4
+    keep-monthly: 12
+    keep-yearly: 3
+    prune: true
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Profiles
+# ──────────────────────────────────────────────────────────────────────────────
+profiles:
+
+  # ── Abstract base profiles (prefixed with _ by convention) ─────────────────
+
+  # Shared retention settings used as a base for production profiles
+  _base-retention:
+    abstract: true
+    retention:
+      keep-last: 5
+      keep-daily: 14
+      keep-weekly: 8
+      keep-monthly: 24
+      keep-yearly: 5
+      prune: true
+
+  # ── File backup ─────────────────────────────────────────────────────────────
+
+  files-home:
+    repository: local
+    paths:
+      - /home/user/documents
+      - /home/user/projects
+    excludes:
+      - "**/.git"
+      - "**/node_modules"
+      - "**/__pycache__"
+    tags: [files, home]
+    schedule: "0 2 * * *"   # daily at 02:00
+    retention:
+      keep-last: 7
+      keep-daily: 30
+      keep-weekly: 12
+      prune: true
+    hooks:
+      post-success:
+        - webhook: https://monitoring.example.com/healthcheck/files-home
+      post-failure:
+        - command: [notify-send, "squirrel", "files-home backup FAILED"]
+
+  files-etc:
+    repository: s3-prod
+    paths:
+      - /etc
+    excludes:
+      - /etc/mtab
+    tags: [files, config]
+    schedule: "30 1 * * *"
+    retention:
+      keep-last: 14
+      keep-daily: 30
+      prune: true
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+
+  pg-prod:
+    extends: _base-retention
+    repository: s3-prod
+    type: postgres
+    dsn: ${vault-prod:secret/postgres#replication_url}
+    slot: squirrel
+    tags: [postgres, production]
+    schedule: "0 3 * * *"
+    hooks:
+      pre-backup:
+        - command: [psql, -c, "CHECKPOINT"]
+      post-success:
+        - webhook: https://monitoring.example.com/healthcheck/pg-prod
+      post-failure:
+        - webhook: https://alerts.example.com/pg-prod-backup-failed
+
+  pg-staging:
+    repository: local
+    type: postgres
+    dsn: postgres://squirrel:squirrel@localhost:5432/stagingdb?sslmode=disable
+    slot: squirrel-staging
+    tags: [postgres, staging]
+    schedule: "0 4 * * *"
+    retention:
+      keep-last: 3
+      keep-daily: 7
+      prune: true
+
+  # ── MySQL / MariaDB ─────────────────────────────────────────────────────────
+
+  mysql-prod:
+    extends: _base-retention
+    repository: s3-prod
+    type: mysql
+    dsn: ${sops-secrets:mysql/prod/dsn}
+    databases:
+      - appdb
+      - auditdb
+    tags: [mysql, production]
+    schedule: "0 1 * * *"
+    hooks:
+      post-success:
+        - webhook: https://monitoring.example.com/healthcheck/mysql-prod
+
+  mysql-dev:
+    repository: local
+    type: mysql
+    dsn: root:rootpw@tcp(localhost:3306)/
+    databases:
+      - devdb
+    tags: [mysql, dev]
+    retention:
+      keep-last: 5
+      prune: true
+
+  # ── Multi-repo: same profile backed up to two locations ────────────────────
+
+  pg-prod-offsite:
+    extends: pg-prod
+    repository: sftp-offsite
+    tags: [postgres, production, offsite]
+    schedule: "0 5 * * 0"   # weekly on Sunday at 05:00
