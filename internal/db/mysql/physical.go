@@ -31,12 +31,10 @@ func (a *Adapter) PhysicalBackup(ctx context.Context, r *repo.Repo, dataDir stri
 		return gomysql.Position{}, "", "", fmt.Errorf("flush tables: %w", err)
 	}
 
-	var file, binlogDoDB, binlogIgnoreDB, gtidSet string
-	var pos uint32
-	row := conn.QueryRowContext(ctx, "SHOW MASTER STATUS")
-	if err := row.Scan(&file, &pos, &binlogDoDB, &binlogIgnoreDB, &gtidSet); err != nil {
+	file, pos, _, _, gtidSet, binlogErr := showBinlogStatus(ctx, conn)
+	if binlogErr != nil {
 		conn.ExecContext(ctx, "UNLOCK TABLES")
-		return gomysql.Position{}, "", "", fmt.Errorf("show master status: %w", err)
+		return gomysql.Position{}, "", "", fmt.Errorf("binlog status: %w", binlogErr)
 	}
 	binlogPos := gomysql.Position{Name: file, Pos: pos}
 	slog.Info("physical backup locked", "binlog", file, "pos", pos)

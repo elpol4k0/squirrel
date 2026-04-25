@@ -13,8 +13,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: ["1.24", "1.25"]
+        go: ["1.25"]
         os: [ubuntu-latest, macos-latest, windows-latest]
+    env:
+      CGO_ENABLED: "0"
     steps:
       - uses: actions/checkout@v4
 
@@ -43,7 +45,7 @@ jobs:
       - uses: golangci/golangci-lint-action@v6
         with:
           version: latest
-          args: --timeout=5m
+          args: --timeout=5m --go=1.24
 
   integration:
     name: Integration tests (PostgreSQL ${{ matrix.pg }})

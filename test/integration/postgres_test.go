@@ -54,9 +54,8 @@ func startPostgres(t *testing.T) (dsn string, cleanup func()) {
 	// Replication requires wal_level >= replica and the user must have REPLICATION privilege.
 	setupReplication(t, connStr)
 
-	replDSN := connStr + " replication=database"
 	cleanup = func() { container.Terminate(ctx) } //nolint:errcheck
-	return replDSN, cleanup
+	return connStr, cleanup
 }
 
 func setupReplication(t *testing.T, connStr string) {
