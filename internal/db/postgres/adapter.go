@@ -35,7 +35,7 @@ func (a *Adapter) IdentifySystem(ctx context.Context) (pglogrepl.IdentifySystemR
 	if err != nil {
 		return pglogrepl.IdentifySystemResult{}, err
 	}
-	defer conn.Close(ctx)
+	defer conn.Close(ctx) //nolint:errcheck
 	return pglogrepl.IdentifySystem(ctx, conn)
 }
 
@@ -44,7 +44,7 @@ func (a *Adapter) BaseBackup(ctx context.Context, r *repo.Repo) (pglogrepl.LSN, 
 	if err != nil {
 		return 0, pglogrepl.IdentifySystemResult{}, "", err
 	}
-	defer conn.Close(ctx)
+	defer conn.Close(ctx) //nolint:errcheck
 
 	sysident, err := pglogrepl.IdentifySystem(ctx, conn)
 	if err != nil {
@@ -119,7 +119,7 @@ func (a *Adapter) CreateSlot(ctx context.Context, slotName string) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close(ctx)
+	defer conn.Close(ctx) //nolint:errcheck
 
 	_, err = pglogrepl.CreateReplicationSlot(ctx, conn, slotName, "",
 		pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.PhysicalReplication})
@@ -135,7 +135,7 @@ func (a *Adapter) DropSlot(ctx context.Context, slotName string) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close(ctx)
+	defer conn.Close(ctx) //nolint:errcheck
 	if err := pglogrepl.DropReplicationSlot(ctx, conn, slotName, pglogrepl.DropReplicationSlotOptions{}); err != nil {
 		return fmt.Errorf("drop replication slot %q: %w", slotName, err)
 	}
@@ -148,7 +148,7 @@ func (a *Adapter) StreamWAL(ctx context.Context, r *repo.Repo, slotName string, 
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close(ctx)
+	defer conn.Close(ctx) //nolint:errcheck
 
 	if err := pglogrepl.StartReplication(ctx, conn, slotName, startLSN,
 		pglogrepl.StartReplicationOptions{Mode: pglogrepl.PhysicalReplication, Timeline: timelineID}); err != nil {
