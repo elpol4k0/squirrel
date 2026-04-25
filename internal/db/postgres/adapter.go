@@ -64,29 +64,37 @@ func (a *Adapter) BaseBackup(ctx context.Context, r *repo.Repo) (pglogrepl.LSN, 
 
 	var treeNodes []repo.TreeNode
 
+	// pg_data is always streamed first; getTableSpaceInfo skips it (NULL spcoid).
+	if err := pglogrepl.NextTableSpace(ctx, conn); err != nil {
+		return 0, sysident, "", fmt.Errorf("next tablespace (base): %w", err)
+	}
+	slog.Info("streaming tablespace", "index", 0, "location", "base")
+	baseRd := &copyDataReader{conn: conn, ctx: ctx}
+	baseBlobIDs, err := streamTAR(ctx, r, baseRd, "base")
+	if err != nil {
+		return 0, sysident, "", fmt.Errorf("stream tablespace base: %w", err)
+	}
+	treeNodes = append(treeNodes, repo.TreeNode{
+		Name:    "base.tar",
+		Type:    "file",
+		Content: baseBlobIDs,
+	})
+
 	for i, ts := range result.Tablespaces {
-		label := ts.Location
-		if label == "" {
-			label = "base"
-		}
-		slog.Info("streaming tablespace", "index", i, "location", label, "size", ts.Size)
+		slog.Info("streaming tablespace", "index", i+1, "location", ts.Location, "size", ts.Size)
 
 		if err := pglogrepl.NextTableSpace(ctx, conn); err != nil {
-			return 0, sysident, "", fmt.Errorf("next tablespace: %w", err)
+			return 0, sysident, "", fmt.Errorf("next tablespace %s: %w", ts.Location, err)
 		}
 
 		rd := &copyDataReader{conn: conn, ctx: ctx}
-		blobIDs, err := streamTAR(ctx, r, rd, label)
+		blobIDs, err := streamTAR(ctx, r, rd, ts.Location)
 		if err != nil {
-			return 0, sysident, "", fmt.Errorf("stream tablespace %s: %w", label, err)
+			return 0, sysident, "", fmt.Errorf("stream tablespace %s: %w", ts.Location, err)
 		}
 
-		name := label + ".tar"
-		if label == "base" {
-			name = "base.tar"
-		}
 		treeNodes = append(treeNodes, repo.TreeNode{
-			Name:    name,
+			Name:    ts.Location + ".tar",
 			Type:    "file",
 			Content: blobIDs,
 		})
