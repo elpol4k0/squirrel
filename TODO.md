@@ -114,7 +114,7 @@
 
 ### Performance
 - [x] Parallele Blob-Uploads (Worker-Pool im Packer, 4 concurrent uploads)
-- [ ] Parallele Chunk-Verarbeitung beim Backup
+- [x] Parallele Chunk-Verarbeitung beim Backup
 - [ ] Streaming-Index (Memory-mapped oder BoltDB/Pebble für TB-Repos)
 - [ ] Partial-Pack-Repack beim Prune (statt ganzen Pack löschen)
 
@@ -154,5 +154,5 @@
 ### Phase 5 Rest
 - [ ] `squirrel mount` auf Windows mit WinFsp (`cgofuse`)
 - [x] `squirrel diff --stat` – nur Zahlen, keine Dateiliste
-- [ ] Cross-Snapshot-Dedup-Report (`squirrel stats --dedup`)
+- [x] Cross-Snapshot-Dedup-Report (`squirrel stats --dedup`)
 - [ ] FUSE: Zeitstempel + Permissions korrekt aus Snapshot-Metadaten

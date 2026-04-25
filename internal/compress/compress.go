@@ -7,18 +7,22 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-var (
-	encMu   sync.Mutex
-	encoder *zstd.Encoder
-	decoder *zstd.Decoder
-)
+// encoderPool holds reusable zstd.Encoders; each goroutine gets its own to avoid lock contention.
+var encoderPool = sync.Pool{
+	New: func() any {
+		enc, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
+		if err != nil {
+			panic(fmt.Sprintf("compress: create encoder: %v", err))
+		}
+		return enc
+	},
+}
+
+var decoder *zstd.Decoder
 
 func init() {
 	var err error
-	encoder, err = zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))
-	if err != nil {
-		panic(fmt.Sprintf("compress: create encoder: %v", err))
-	}
+	// zstd.Decoder.DecodeAll is goroutine-safe; a single shared instance is enough.
 	decoder, err = zstd.NewReader(nil)
 	if err != nil {
 		panic(fmt.Sprintf("compress: create decoder: %v", err))
@@ -26,9 +30,9 @@ func init() {
 }
 
 func Compress(data []byte) []byte {
-	encMu.Lock()
-	out := encoder.EncodeAll(data, make([]byte, 0, len(data)/2))
-	encMu.Unlock()
+	enc := encoderPool.Get().(*zstd.Encoder)
+	out := enc.EncodeAll(data, make([]byte, 0, len(data)/2))
+	encoderPool.Put(enc)
 	return out
 }
 

@@ -16,6 +16,7 @@ import (
 	"github.com/elpol4k0/squirrel/internal/backend/local"
 	"github.com/elpol4k0/squirrel/internal/backend/s3"
 	backendsftp "github.com/elpol4k0/squirrel/internal/backend/sftp"
+	"github.com/elpol4k0/squirrel/internal/compress"
 	"github.com/elpol4k0/squirrel/internal/crypto"
 )
 
@@ -40,6 +41,7 @@ type Repo struct {
 	packer    *Packer
 	// blobs added to current packer but not yet in Index; needed for within-session dedup
 	pending map[BlobID]struct{}
+	packMu  sync.Mutex // guards packer and pending
 
 	uploadSem   chan struct{}
 	uploadWg    sync.WaitGroup
@@ -168,16 +170,39 @@ func Open(url string, password []byte) (*Repo, error) {
 
 func (r *Repo) SaveBlob(ctx context.Context, blobType BlobType, data []byte) (BlobID, bool, error) {
 	id := computeID(data)
+
+	// Fast dedup check without any lock (Index uses its own RWMutex).
+	if r.Index.Has(id) {
+		return id, false, nil
+	}
+
+	r.packMu.Lock()
+	if _, ok := r.pending[id]; ok {
+		r.packMu.Unlock()
+		return id, false, nil
+	}
+	r.packMu.Unlock()
+
+	// Compress + encrypt outside the lock; these are CPU-bound and goroutine-safe.
+	enc, err := crypto.Seal(r.masterKey, compress.Compress(data))
+	if err != nil {
+		return BlobID{}, false, fmt.Errorf("seal blob: %w", err)
+	}
+
+	r.packMu.Lock()
+	defer r.packMu.Unlock()
+
+	// Re-check after acquiring lock; a concurrent goroutine may have won the race.
 	if r.Index.Has(id) {
 		return id, false, nil
 	}
 	if _, ok := r.pending[id]; ok {
 		return id, false, nil
 	}
-	if _, err := r.packer.Add(blobType, data); err != nil {
-		return BlobID{}, false, err
-	}
+
+	r.packer.AddEncrypted(blobType, id, enc, len(data))
 	r.pending[id] = struct{}{}
+
 	if r.packer.Size() >= maxPackSize {
 		if err := r.flushPacker(ctx); err != nil {
 			return BlobID{}, false, err
@@ -187,12 +212,15 @@ func (r *Repo) SaveBlob(ctx context.Context, blobType BlobType, data []byte) (Bl
 }
 
 func (r *Repo) Flush(ctx context.Context) error {
-	if err := r.flushPacker(ctx); err != nil {
+	r.packMu.Lock()
+	err := r.flushPacker(ctx)
+	r.packMu.Unlock()
+	if err != nil {
 		return err
 	}
 	r.uploadWg.Wait()
 	r.uploadErrMu.Lock()
-	err := r.uploadErr
+	err = r.uploadErr
 	r.uploadErrMu.Unlock()
 	if err != nil {
 		return err

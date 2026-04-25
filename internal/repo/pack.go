@@ -79,6 +79,13 @@ func (p *Packer) Add(blobType BlobType, plaintext []byte) (BlobID, error) {
 	if err != nil {
 		return BlobID{}, fmt.Errorf("seal blob: %w", err)
 	}
+	p.AddEncrypted(blobType, id, enc, len(plaintext))
+	return id, nil
+}
+
+// AddEncrypted appends an already-compressed-and-sealed blob to the pack.
+// The caller must ensure enc was produced from data of rawLen bytes.
+func (p *Packer) AddEncrypted(blobType BlobType, id BlobID, enc []byte, rawLen int) {
 	offset := p.buf.Len()
 	p.buf.Write(enc)
 	p.blobs = append(p.blobs, blobEntry{
@@ -86,9 +93,8 @@ func (p *Packer) Add(blobType BlobType, plaintext []byte) (BlobID, error) {
 		Type:      blobType,
 		Offset:    offset,
 		Length:    len(enc),
-		RawLength: len(plaintext),
+		RawLength: rawLen,
 	})
-	return id, nil
 }
 
 // Finalize seals the pack and returns its ID, a copy of the raw bytes, and blob locations.

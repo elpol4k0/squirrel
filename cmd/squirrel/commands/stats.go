@@ -13,11 +13,13 @@ import (
 )
 
 type repoStats struct {
-	Snapshots  int   `json:"snapshots"`
-	Blobs      int   `json:"blobs"`
-	Packs      int   `json:"packs"`
-	PackBytes  int64 `json:"pack_bytes"`
-	IndexFiles int   `json:"index_files"`
+	Snapshots    int     `json:"snapshots"`
+	Blobs        int     `json:"blobs"`
+	Packs        int     `json:"packs"`
+	PackBytes    int64   `json:"pack_bytes"`
+	IndexFiles   int     `json:"index_files"`
+	LogicalBytes int64   `json:"logical_bytes,omitempty"`
+	DedupRatio   float64 `json:"dedup_ratio,omitempty"`
 }
 
 var statsCmd = &cobra.Command{
@@ -27,19 +29,21 @@ var statsCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		repoPath, _ := cmd.Flags().GetString("repo")
 		jsonOut, _ := cmd.Flags().GetBool("json")
+		dedup, _ := cmd.Flags().GetBool("dedup")
 		if repoPath == "" {
 			return fmt.Errorf("--repo is required")
 		}
-		return runStats(repoPath, jsonOut)
+		return runStats(repoPath, jsonOut, dedup)
 	},
 }
 
 func init() {
 	statsCmd.Flags().String("repo", "", "repository URL (required)")
 	statsCmd.Flags().Bool("json", false, "output as JSON")
+	statsCmd.Flags().Bool("dedup", false, "compute logical size and dedup ratio (walks all snapshot trees)")
 }
 
-func runStats(repoPath string, jsonOut bool) error {
+func runStats(repoPath string, jsonOut, dedup bool) error {
 	ctx := context.Background()
 
 	password, err := readTerminalPassword("Repository password: ")
@@ -79,6 +83,24 @@ func runStats(repoPath string, jsonOut bool) error {
 		IndexFiles: len(indexFiles),
 	}
 
+	if dedup {
+		var logicalBytes int64
+		for _, snap := range snaps {
+			if snap.Tree == "" {
+				continue
+			}
+			tree, err := r.LoadTree(ctx, snap.Tree)
+			if err != nil {
+				continue
+			}
+			logicalBytes += sumTreeSize(ctx, r, tree)
+		}
+		st.LogicalBytes = logicalBytes
+		if totalPackBytes > 0 {
+			st.DedupRatio = float64(logicalBytes) / float64(totalPackBytes)
+		}
+	}
+
 	if jsonOut {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
@@ -90,5 +112,25 @@ func runStats(repoPath string, jsonOut bool) error {
 	fmt.Printf("Unique blobs: %d\n", st.Blobs)
 	fmt.Printf("Pack files:   %d  (%s)\n", st.Packs, humanBytes(st.PackBytes))
 	fmt.Printf("Index files:  %d\n", st.IndexFiles)
+	if dedup {
+		fmt.Printf("Logical size: %s\n", humanBytes(st.LogicalBytes))
+		fmt.Printf("Dedup ratio:  %.2fx\n", st.DedupRatio)
+	}
 	return nil
+}
+
+// sumTreeSize recursively sums the file sizes of all nodes in a tree.
+func sumTreeSize(ctx context.Context, r *repo.Repo, tree *repo.Tree) int64 {
+	var total int64
+	for _, node := range tree.Nodes {
+		if node.Type == "file" {
+			total += node.Size
+		} else if node.Type == "dir" && node.Subtree != "" {
+			sub, err := r.LoadTree(ctx, node.Subtree)
+			if err == nil {
+				total += sumTreeSize(ctx, r, sub)
+			}
+		}
+	}
+	return total
 }

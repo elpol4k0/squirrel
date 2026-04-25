@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"sync"
 	"sync/atomic"
 
 	"github.com/elpol4k0/squirrel/internal/chunker"
@@ -17,10 +19,11 @@ import (
 )
 
 var (
-	backupRepo   string
-	backupSrc    string
-	backupDryRun bool
-	backupTags   []string
+	backupRepo     string
+	backupSrc      string
+	backupDryRun   bool
+	backupTags     []string
+	backupParallel int
 )
 
 var backupCmd = &cobra.Command{
@@ -35,7 +38,7 @@ var backupCmd = &cobra.Command{
 		if backupSrc == "" {
 			return fmt.Errorf("--path is required")
 		}
-		return runBackup(backupRepo, backupSrc, backupDryRun, backupTags)
+		return runBackup(backupRepo, backupSrc, backupDryRun, backupTags, backupParallel)
 	},
 }
 
@@ -45,6 +48,7 @@ func init() {
 	backupCmd.Flags().StringVar(&backupSrc, "file", "", "Alias for --path")
 	backupCmd.Flags().BoolVar(&backupDryRun, "dry-run", false, "Show what would be uploaded without writing anything")
 	backupCmd.Flags().StringArrayVar(&backupTags, "tag", nil, "Tags to attach to the snapshot (repeatable)")
+	backupCmd.Flags().IntVar(&backupParallel, "parallel", 0, "Number of parallel file uploads (0 = number of CPUs)")
 	backupCmd.Flags().MarkHidden("file")
 }
 
@@ -57,9 +61,10 @@ type backupStats struct {
 	dedupBytes  int64
 	totalBytes  int64
 	bar         *progress.Bar
+	sem         chan struct{} // limits concurrent file goroutines; nil = sequential
 }
 
-func runBackup(repoPath, srcPath string, dryRun bool, tags []string) error {
+func runBackup(repoPath, srcPath string, dryRun bool, tags []string, parallel int) error {
 	ctx := context.Background()
 
 	if _, err := os.Lstat(srcPath); err != nil {
@@ -75,9 +80,15 @@ func runBackup(repoPath, srcPath string, dryRun bool, tags []string) error {
 		return fmt.Errorf("open repo: %w", err)
 	}
 
+	workers := parallel
+	if workers <= 0 {
+		workers = runtime.NumCPU()
+	}
+
 	bar := progress.NewBytes("backup")
 	var stats backupStats
 	stats.bar = bar
+	stats.sem = make(chan struct{}, workers)
 
 	if dryRun {
 		if err := dryRunScan(r, srcPath, &stats); err != nil {
@@ -146,8 +157,14 @@ func backupDir(ctx context.Context, r *repo.Repo, dirPath string, stats *backupS
 	}
 	atomic.AddInt64(&stats.dirs, 1)
 
-	var nodes []repo.TreeNode
-	for _, entry := range entries {
+	type nodeResult struct {
+		node repo.TreeNode
+		err  error
+	}
+	results := make([]nodeResult, len(entries))
+
+	var wg sync.WaitGroup
+	for i, entry := range entries {
 		childPath := filepath.Join(dirPath, entry.Name())
 		fi, err := entry.Info()
 		if err != nil {
@@ -156,29 +173,49 @@ func backupDir(ctx context.Context, r *repo.Repo, dirPath string, stats *backupS
 		}
 
 		if entry.IsDir() {
+			// Recurse synchronously to preserve tree structure.
 			subtreeID, err := backupDir(ctx, r, childPath, stats)
-			if err != nil {
-				return repo.BlobID{}, err
+			results[i] = nodeResult{err: err}
+			if err == nil {
+				results[i].node = repo.TreeNode{
+					Name:    entry.Name(),
+					Type:    "dir",
+					Size:    fi.Size(),
+					Mode:    uint32(fi.Mode()),
+					Subtree: subtreeID.String(),
+				}
 			}
-			nodes = append(nodes, repo.TreeNode{
-				Name:    entry.Name(),
-				Type:    "dir",
-				Size:    fi.Size(),
-				Mode:    uint32(fi.Mode()),
-				Subtree: subtreeID.String(),
-			})
 		} else if entry.Type().IsRegular() {
-			contentIDs, size, err := backupFile(ctx, r, childPath, stats)
-			if err != nil {
-				return repo.BlobID{}, err
-			}
-			nodes = append(nodes, repo.TreeNode{
-				Name:    entry.Name(),
-				Type:    "file",
-				Size:    size,
-				Mode:    uint32(fi.Mode()),
-				Content: contentIDs,
-			})
+			wg.Add(1)
+			stats.sem <- struct{}{}
+			idx, ent, info := i, entry, fi
+			go func() {
+				defer wg.Done()
+				defer func() { <-stats.sem }()
+				contentIDs, size, err := backupFile(ctx, r, filepath.Join(dirPath, ent.Name()), stats)
+				if err != nil {
+					results[idx] = nodeResult{err: err}
+					return
+				}
+				results[idx] = nodeResult{node: repo.TreeNode{
+					Name:    ent.Name(),
+					Type:    "file",
+					Size:    size,
+					Mode:    uint32(info.Mode()),
+					Content: contentIDs,
+				}}
+			}()
+		}
+	}
+	wg.Wait()
+
+	var nodes []repo.TreeNode
+	for _, res := range results {
+		if res.err != nil {
+			return repo.BlobID{}, res.err
+		}
+		if res.node.Name != "" {
+			nodes = append(nodes, res.node)
 		}
 	}
 	return saveTree(ctx, r, repo.Tree{Nodes: nodes})

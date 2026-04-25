@@ -149,7 +149,7 @@ func runFileBackupFromProfile(ctx context.Context, repoURL string, password []by
 		return fmt.Errorf("open repo: %w", err)
 	}
 	for _, path := range p.Paths {
-		if err := runBackup(repoURL, path, false, p.Tags); err != nil {
+		if err := runBackup(repoURL, path, false, p.Tags, 0); err != nil {
 			return err
 		}
 		_ = r
