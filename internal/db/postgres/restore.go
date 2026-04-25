@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"archive/tar"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -131,32 +132,15 @@ func WriteRecoveryConf(targetDir, walDir, targetTime, targetLSN string) error {
 }
 
 func extractBlobsAsTAR(ctx context.Context, r *repo.Repo, blobIDs []string, targetDir string) error {
-	pr, pw := io.Pipe()
-	errCh := make(chan error, 1)
-
-	go func() {
-		defer pw.Close()
-		for _, id := range blobIDs {
-			data, err := r.LoadBlobByID(ctx, id)
-			if err != nil {
-				pw.CloseWithError(err)
-				errCh <- err
-				return
-			}
-			if _, err := pw.Write(data); err != nil {
-				errCh <- err
-				return
-			}
+	var buf bytes.Buffer
+	for _, id := range blobIDs {
+		data, err := r.LoadBlobByID(ctx, id)
+		if err != nil {
+			return fmt.Errorf("load blob %s: %w", id[:12], err)
 		}
-		errCh <- nil
-	}()
-
-	extractErr := extractTAR(pr, targetDir)
-	pipeErr := <-errCh
-	if extractErr != nil {
-		return extractErr
+		buf.Write(data)
 	}
-	return pipeErr
+	return extractTAR(&buf, targetDir)
 }
 
 func extractTAR(rd io.Reader, targetDir string) error {
@@ -182,7 +166,7 @@ func extractTAR(rd io.Reader, targetDir string) error {
 			if err := os.MkdirAll(target, os.FileMode(hdr.Mode)|0o700); err != nil {
 				return err
 			}
-		case tar.TypeReg, tar.TypeRegA:
+		case tar.TypeReg:
 			if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
 				return err
 			}

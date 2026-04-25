@@ -232,8 +232,3 @@ func (r *tokenResolver) resolveVaultToken(tokenFrom string) (string, error) {
 	}
 	return "", fmt.Errorf("unsupported token-from format %q (use env:VAR)", tokenFrom)
 }
-
-// resolveToken is the package-level helper for callers that have no named providers.
-func resolveToken(s string) (string, error) {
-	return (&tokenResolver{named: map[string]SecretProviderCfg{}}).resolve(s)
-}

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pglogrepl"
@@ -35,7 +37,7 @@ func (a *Adapter) IdentifySystem(ctx context.Context) (pglogrepl.IdentifySystemR
 	if err != nil {
 		return pglogrepl.IdentifySystemResult{}, err
 	}
-	defer conn.Close(ctx)
+	defer conn.Close(ctx) //nolint:errcheck
 	return pglogrepl.IdentifySystem(ctx, conn)
 }
 
@@ -44,7 +46,7 @@ func (a *Adapter) BaseBackup(ctx context.Context, r *repo.Repo) (pglogrepl.LSN, 
 	if err != nil {
 		return 0, pglogrepl.IdentifySystemResult{}, "", err
 	}
-	defer conn.Close(ctx)
+	defer conn.Close(ctx) //nolint:errcheck
 
 	sysident, err := pglogrepl.IdentifySystem(ctx, conn)
 	if err != nil {
@@ -64,29 +66,38 @@ func (a *Adapter) BaseBackup(ctx context.Context, r *repo.Repo) (pglogrepl.LSN, 
 
 	var treeNodes []repo.TreeNode
 
+	// pg_data is always streamed first; getTableSpaceInfo skips it (NULL spcoid).
+	if err := pglogrepl.NextTableSpace(ctx, conn); err != nil {
+		return 0, sysident, "", fmt.Errorf("next tablespace (base): %w", err)
+	}
+	v2 := isV2BackupProtocol(conn)
+	slog.Info("streaming tablespace", "index", 0, "location", "base", "v2proto", v2)
+	baseRd := &copyDataReader{conn: conn, ctx: ctx, v2: v2}
+	baseBlobIDs, err := streamTAR(ctx, r, baseRd, "base")
+	if err != nil {
+		return 0, sysident, "", fmt.Errorf("stream tablespace base: %w", err)
+	}
+	treeNodes = append(treeNodes, repo.TreeNode{
+		Name:    "base.tar",
+		Type:    "file",
+		Content: baseBlobIDs,
+	})
+
 	for i, ts := range result.Tablespaces {
-		label := ts.Location
-		if label == "" {
-			label = "base"
-		}
-		slog.Info("streaming tablespace", "index", i, "location", label, "size", ts.Size)
+		slog.Info("streaming tablespace", "index", i+1, "location", ts.Location, "size", ts.Size)
 
 		if err := pglogrepl.NextTableSpace(ctx, conn); err != nil {
-			return 0, sysident, "", fmt.Errorf("next tablespace: %w", err)
+			return 0, sysident, "", fmt.Errorf("next tablespace %s: %w", ts.Location, err)
 		}
 
-		rd := &copyDataReader{conn: conn, ctx: ctx}
-		blobIDs, err := streamTAR(ctx, r, rd, label)
+		rd := &copyDataReader{conn: conn, ctx: ctx, v2: v2}
+		blobIDs, err := streamTAR(ctx, r, rd, ts.Location)
 		if err != nil {
-			return 0, sysident, "", fmt.Errorf("stream tablespace %s: %w", label, err)
+			return 0, sysident, "", fmt.Errorf("stream tablespace %s: %w", ts.Location, err)
 		}
 
-		name := label + ".tar"
-		if label == "base" {
-			name = "base.tar"
-		}
 		treeNodes = append(treeNodes, repo.TreeNode{
-			Name:    name,
+			Name:    ts.Location + ".tar",
 			Type:    "file",
 			Content: blobIDs,
 		})
@@ -111,7 +122,7 @@ func (a *Adapter) CreateSlot(ctx context.Context, slotName string) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close(ctx)
+	defer conn.Close(ctx) //nolint:errcheck
 
 	_, err = pglogrepl.CreateReplicationSlot(ctx, conn, slotName, "",
 		pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.PhysicalReplication})
@@ -127,7 +138,7 @@ func (a *Adapter) DropSlot(ctx context.Context, slotName string) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close(ctx)
+	defer conn.Close(ctx) //nolint:errcheck
 	if err := pglogrepl.DropReplicationSlot(ctx, conn, slotName, pglogrepl.DropReplicationSlotOptions{}); err != nil {
 		return fmt.Errorf("drop replication slot %q: %w", slotName, err)
 	}
@@ -140,7 +151,7 @@ func (a *Adapter) StreamWAL(ctx context.Context, r *repo.Repo, slotName string, 
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close(ctx)
+	defer conn.Close(ctx) //nolint:errcheck
 
 	if err := pglogrepl.StartReplication(ctx, conn, slotName, startLSN,
 		pglogrepl.StartReplicationOptions{Mode: pglogrepl.PhysicalReplication, Timeline: timelineID}); err != nil {
@@ -255,7 +266,7 @@ func (a *Adapter) replConn(ctx context.Context) (*pgconn.PgConn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse DSN: %w", err)
 	}
-	cfg.RuntimeParams["replication"] = "database"
+	cfg.RuntimeParams["replication"] = "on"
 	conn, err := pgconn.ConnectConfig(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("replication connect: %w", err)
@@ -268,6 +279,7 @@ type copyDataReader struct {
 	ctx  context.Context
 	buf  []byte
 	done bool
+	v2   bool // PostgreSQL 15+: each CopyData has a 1-byte type prefix
 }
 
 func (r *copyDataReader) Read(p []byte) (int, error) {
@@ -286,6 +298,28 @@ func (r *copyDataReader) Read(p []byte) (int, error) {
 		}
 		switch m := msg.(type) {
 		case *pgproto3.CopyData:
+			if r.v2 {
+				if len(m.Data) == 0 {
+					continue
+				}
+				switch m.Data[0] {
+				case 'n': // tablespace header – skip
+					continue
+				case 'e': // end-of-tablespace marker – skip, CopyDone signals EOF
+					continue
+				case 'd': // TAR data – strip the type byte
+					payload := m.Data[1:]
+					if len(payload) == 0 {
+						continue
+					}
+					n := copy(p, payload)
+					if n < len(payload) {
+						r.buf = append(r.buf[:0], payload[n:]...)
+					}
+					return n, nil
+				}
+			}
+			// old protocol (PG 14-): raw TAR bytes with no type prefix
 			n := copy(p, m.Data)
 			if n < len(m.Data) {
 				r.buf = append(r.buf[:0], m.Data[n:]...)
@@ -298,6 +332,19 @@ func (r *copyDataReader) Read(p []byte) (int, error) {
 			return 0, pgconn.ErrorResponseToPgError(m)
 		}
 	}
+}
+
+func isV2BackupProtocol(conn *pgconn.PgConn) bool {
+	ver := conn.ParameterStatus("server_version")
+	dot := strings.IndexByte(ver, '.')
+	if dot <= 0 {
+		return false
+	}
+	major, err := strconv.Atoi(ver[:dot])
+	if err != nil {
+		return false
+	}
+	return major >= 15
 }
 
 func streamTAR(ctx context.Context, r *repo.Repo, rd io.Reader, label string) ([]string, error) {

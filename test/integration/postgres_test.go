@@ -51,17 +51,24 @@ func startPostgres(t *testing.T) (dsn string, cleanup func()) {
 		t.Fatalf("connection string: %v", err)
 	}
 
-	// Replication requires wal_level >= replica and the user must have REPLICATION privilege.
-	setupReplication(t, connStr)
+	setupReplication(t, container, connStr)
 
-	replDSN := connStr + " replication=database"
 	cleanup = func() { container.Terminate(ctx) } //nolint:errcheck
-	return replDSN, cleanup
+	return connStr, cleanup
 }
 
-func setupReplication(t *testing.T, connStr string) {
+func setupReplication(t *testing.T, container testcontainers.Container, connStr string) {
 	t.Helper()
 	ctx := context.Background()
+
+	// The default pg_hba.conf only allows replication from 127.0.0.1/::1.
+	// Docker testcontainers connect via the bridge gateway (e.g. 172.17.0.1),
+	// so we append a wildcard entry and reload.
+	if code, _, err := container.Exec(ctx, []string{"sh", "-c",
+		`echo "host replication all 0.0.0.0/0 trust" >> "$PGDATA/pg_hba.conf"`,
+	}); err != nil || code != 0 {
+		t.Logf("add pg_hba replication entry: code=%d err=%v", code, err)
+	}
 
 	conn, err := pgx.Connect(ctx, connStr)
 	if err != nil {
@@ -70,7 +77,7 @@ func setupReplication(t *testing.T, connStr string) {
 	defer conn.Close(ctx)
 
 	for _, stmt := range []string{
-		"ALTER SYSTEM SET wal_level = replica",
+		"SELECT pg_reload_conf()",
 		"ALTER USER squirrel REPLICATION",
 	} {
 		if _, err := conn.Exec(ctx, stmt); err != nil {

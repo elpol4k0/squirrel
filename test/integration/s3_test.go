@@ -38,7 +38,7 @@ func startMinio(t *testing.T) (endpoint string, cleanup func()) {
 			"MINIO_ROOT_USER":     minioUser,
 			"MINIO_ROOT_PASSWORD": minioPassword,
 		},
-		WaitingFor: wait.ForHTTP("/minio/health/live").
+		WaitingFor: wait.ForHTTP("/minio/health/ready").
 			WithPort("9000").
 			WithStartupTimeout(60 * time.Second),
 	}

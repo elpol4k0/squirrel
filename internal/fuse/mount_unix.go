@@ -114,7 +114,16 @@ func (d *snapDir) Getattr(ctx context.Context, fh gofuse.FileHandle, out *fuse.A
 }
 
 func (d *snapDir) Readdir(ctx context.Context) (gofuse.DirStream, syscall.Errno) {
-	return d.Inode.NewNodeReaddir(ctx)
+	children := d.Children()
+	entries := make([]fuse.DirEntry, 0, len(children))
+	for name, child := range children {
+		entries = append(entries, fuse.DirEntry{
+			Name: name,
+			Mode: child.StableAttr().Mode,
+			Ino:  child.StableAttr().Ino,
+		})
+	}
+	return gofuse.NewListDirStream(entries), 0
 }
 
 func (d *snapDir) Lookup(ctx context.Context, name string, out *fuse.EntryOut) (*gofuse.Inode, syscall.Errno) {

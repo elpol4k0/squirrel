@@ -32,11 +32,14 @@ func startMySQL(t *testing.T) (dsn string, cleanup func()) {
 
 	image := fmt.Sprintf("mysql:%s", mysqlVersion())
 
+	// WithUsername("root")+WithPassword triggers WithDefaultCredentials to set MYSQL_ROOT_PASSWORD.
+	// MYSQL_ROOT_HOST=% lets root connect from outside the container (testcontainers host port).
 	container, err := tcmysql.RunContainer(ctx,
 		testcontainers.WithImage(image),
 		tcmysql.WithDatabase("testdb"),
-		tcmysql.WithUsername("squirrel"),
-		tcmysql.WithPassword("squirrel"),
+		tcmysql.WithUsername("root"),
+		tcmysql.WithPassword("rootpw"),
+		testcontainers.WithEnv(map[string]string{"MYSQL_ROOT_HOST": "%"}),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("port: 3306  MySQL Community Server").
 				WithStartupTimeout(90*time.Second),
@@ -49,7 +52,7 @@ func startMySQL(t *testing.T) (dsn string, cleanup func()) {
 	host, _ := container.Host(ctx)
 	port, _ := container.MappedPort(ctx, "3306")
 
-	dsn = fmt.Sprintf("squirrel:squirrel@tcp(%s:%s)/testdb", host, port.Port())
+	dsn = fmt.Sprintf("root:rootpw@tcp(%s:%s)/testdb", host, port.Port())
 	cleanup = func() { container.Terminate(ctx) } //nolint:errcheck
 	return dsn, cleanup
 }

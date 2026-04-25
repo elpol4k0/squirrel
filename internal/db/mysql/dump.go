@@ -153,7 +153,6 @@ func dumpTableRows(ctx context.Context, tx *sql.Tx, dbName, table string, buf *b
 		if rowCount%batchSize == 0 {
 			if inBatch {
 				buf.WriteString(";\n")
-				inBatch = false
 			}
 			buf.WriteString(insertPrefix)
 			inBatch = true

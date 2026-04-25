@@ -45,6 +45,22 @@ func New(dsn string) (*Adapter, error) {
 	return &Adapter{dsn: dsn, host: host, port: port, user: user, pass: pass}, nil
 }
 
+// rowQuerier is implemented by both *sql.DB and *sql.Conn.
+type rowQuerier interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+// showBinlogStatus tries SHOW BINARY LOG STATUS (MySQL 8.4+) then falls back to SHOW MASTER STATUS.
+func showBinlogStatus(ctx context.Context, q rowQuerier) (file string, pos uint32, doDb, ignoreDb, gtidSet string, err error) {
+	for _, query := range []string{"SHOW BINARY LOG STATUS", "SHOW MASTER STATUS"} {
+		row := q.QueryRowContext(ctx, query)
+		if err = row.Scan(&file, &pos, &doDb, &ignoreDb, &gtidSet); err == nil {
+			return
+		}
+	}
+	return
+}
+
 func (a *Adapter) BinlogPosition(ctx context.Context) (gomysql.Position, string, error) {
 	db, err := sql.Open("mysql", a.dsn)
 	if err != nil {
@@ -52,11 +68,9 @@ func (a *Adapter) BinlogPosition(ctx context.Context) (gomysql.Position, string,
 	}
 	defer db.Close()
 
-	row := db.QueryRowContext(ctx, "SHOW MASTER STATUS")
-	var file, binlogDoDB, binlogIgnoreDB, executedGTIDSet string
-	var pos uint32
-	if err := row.Scan(&file, &pos, &binlogDoDB, &binlogIgnoreDB, &executedGTIDSet); err != nil {
-		return gomysql.Position{}, "", fmt.Errorf("show master status: %w", err)
+	file, pos, _, _, executedGTIDSet, err := showBinlogStatus(ctx, db)
+	if err != nil {
+		return gomysql.Position{}, "", fmt.Errorf("binlog status: %w", err)
 	}
 	slog.Info("binlog position", "file", file, "pos", pos)
 	return gomysql.Position{Name: file, Pos: pos}, executedGTIDSet, nil
@@ -80,12 +94,10 @@ func (a *Adapter) Dump(ctx context.Context, r *repo.Repo, databases []string) (g
 		return gomysql.Position{}, "", "", fmt.Errorf("flush tables: %w", err)
 	}
 	// Read binlog position while the lock is held.
-	var file, binlogDoDB, binlogIgnoreDB, executedGTIDSet string
-	var pos uint32
-	row := conn.QueryRowContext(ctx, "SHOW MASTER STATUS")
-	if err := row.Scan(&file, &pos, &binlogDoDB, &binlogIgnoreDB, &executedGTIDSet); err != nil {
-		conn.ExecContext(ctx, "UNLOCK TABLES")
-		return gomysql.Position{}, "", "", fmt.Errorf("show master status: %w", err)
+	file, pos, _, _, executedGTIDSet, binlogErr := showBinlogStatus(ctx, conn)
+	if binlogErr != nil {
+		conn.ExecContext(ctx, "UNLOCK TABLES") //nolint:errcheck
+		return gomysql.Position{}, "", "", fmt.Errorf("binlog status: %w", binlogErr)
 	}
 	binlogPos := gomysql.Position{Name: file, Pos: pos}
 	slog.Info("dump binlog position", "file", file, "pos", pos)
@@ -93,21 +105,21 @@ func (a *Adapter) Dump(ctx context.Context, r *repo.Repo, databases []string) (g
 	// Start consistent snapshot transaction before releasing the lock.
 	tx, err := conn.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
 	if err != nil {
-		conn.ExecContext(ctx, "UNLOCK TABLES")
+		conn.ExecContext(ctx, "UNLOCK TABLES") //nolint:errcheck
 		return gomysql.Position{}, "", "", err
 	}
-	conn.ExecContext(ctx, "UNLOCK TABLES") // safe: transaction holds the snapshot
+	conn.ExecContext(ctx, "UNLOCK TABLES") //nolint:errcheck
 
 	if len(databases) == 0 {
 		databases, err = listDatabases(ctx, tx)
 		if err != nil {
-			tx.Rollback()
+			tx.Rollback() //nolint:errcheck
 			return gomysql.Position{}, "", "", err
 		}
 	}
 
 	treeID, err := dumpDatabases(ctx, r, tx, databases)
-	tx.Rollback()
+	tx.Rollback() //nolint:errcheck
 	if err != nil {
 		return gomysql.Position{}, "", "", err
 	}
