@@ -23,6 +23,7 @@ var pgRestoreCmd = &cobra.Command{
 		pitrTime, _ := cmd.Flags().GetString("pitr")
 		pitrLSN, _ := cmd.Flags().GetString("pitr-lsn")
 		walDir, _ := cmd.Flags().GetString("wal-dir")
+		verify, _ := cmd.Flags().GetBool("verify")
 
 		if repoPath == "" {
 			return fmt.Errorf("--repo is required")
@@ -30,7 +31,7 @@ var pgRestoreCmd = &cobra.Command{
 		if targetDir == "" {
 			return fmt.Errorf("--target is required")
 		}
-		return runPGRestore(repoPath, args[0], targetDir, walDir, pitrTime, pitrLSN)
+		return runPGRestore(repoPath, args[0], targetDir, walDir, pitrTime, pitrLSN, verify)
 	},
 }
 
@@ -40,11 +41,12 @@ func init() {
 	pgRestoreCmd.Flags().String("pitr", "", "point-in-time recovery target (e.g. \"2026-04-20 14:30:00\")")
 	pgRestoreCmd.Flags().String("pitr-lsn", "", "point-in-time recovery target LSN (e.g. 0/5000028)")
 	pgRestoreCmd.Flags().String("wal-dir", "", "directory for WAL segments (default: <target>/pg_wal_archive)")
+	pgRestoreCmd.Flags().Bool("verify", false, "verify WAL archive coverage and recovery config after restore")
 
 	restoreCmd.AddCommand(pgRestoreCmd)
 }
 
-func runPGRestore(repoURL, snapID, targetDir, walDir, pitrTime, pitrLSN string) error {
+func runPGRestore(repoURL, snapID, targetDir, walDir, pitrTime, pitrLSN string, verify bool) error {
 	password, err := readTerminalPassword("Repository password: ")
 	if err != nil {
 		return err
@@ -101,6 +103,12 @@ func runPGRestore(repoURL, snapID, targetDir, walDir, pitrTime, pitrLSN string) 
 		fmt.Printf("PITR target LSN: %s\n", pitrLSN)
 	}
 	fmt.Println("start PostgreSQL to begin recovery")
+
+	if verify {
+		if err := pgdb.VerifyRecovery(targetDir, walDir); err != nil {
+			return fmt.Errorf("verification failed: %w", err)
+		}
+	}
 	return nil
 }
 

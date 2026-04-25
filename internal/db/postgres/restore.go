@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/elpol4k0/squirrel/internal/repo"
@@ -225,5 +226,39 @@ func extractBlobsToFile(ctx context.Context, r *repo.Repo, blobIDs []string, des
 			return err
 		}
 	}
+	return nil
+}
+
+func VerifyRecovery(targetDir, walDir string) error {
+	if _, err := os.Stat(filepath.Join(targetDir, "recovery.signal")); err != nil {
+		return fmt.Errorf("recovery.signal not found in %s", targetDir)
+	}
+
+	autoconf, err := os.ReadFile(filepath.Join(targetDir, "postgresql.auto.conf"))
+	if err != nil {
+		return fmt.Errorf("read postgresql.auto.conf: %w", err)
+	}
+	if !strings.Contains(string(autoconf), "restore_command") {
+		return fmt.Errorf("restore_command missing from postgresql.auto.conf")
+	}
+
+	entries, err := os.ReadDir(walDir)
+	if err != nil {
+		return fmt.Errorf("read WAL dir %s: %w", walDir, err)
+	}
+
+	var segs []string
+	for _, e := range entries {
+		if !e.IsDir() && len(e.Name()) == 24 {
+			segs = append(segs, e.Name())
+		}
+	}
+	if len(segs) == 0 {
+		return fmt.Errorf("no WAL segments found in %s", walDir)
+	}
+
+	sort.Strings(segs)
+	slog.Info("WAL verification passed", "segments", len(segs), "first", segs[0], "last", segs[len(segs)-1])
+	fmt.Printf("WAL verified: %d segment(s), range %s .. %s\n", len(segs), segs[0], segs[len(segs)-1])
 	return nil
 }

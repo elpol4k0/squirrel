@@ -1,4 +1,4 @@
-//go:build !linux && !darwin
+//go:build !linux && !darwin && (!windows || !cgo)
 
 package fuse
 
@@ -10,5 +10,5 @@ import (
 )
 
 func Mount(ctx context.Context, r *repo.Repo, snapID, mountPoint string) error {
-	return fmt.Errorf("squirrel mount is not supported on this platform; use Linux or macOS (or install WinFsp on Windows and rebuild)")
+	return fmt.Errorf("squirrel mount is not supported on this platform; use Linux, macOS, or Windows with WinFsp (rebuild with CGO_ENABLED=1)")
 }

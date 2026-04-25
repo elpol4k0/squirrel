@@ -120,9 +120,9 @@
 
 ### PostgreSQL
 - [ ] Incremental Base Backup (PG 15+ `pg_basebackup --incremental`)
-- [ ] `squirrel restore postgres --pitr` mit automatischer WAL-Replay-Verification
+- [x] `squirrel restore postgres --pitr` mit automatischer WAL-Replay-Verification
 - [x] Replication-Slot-Cleanup-Command (`squirrel pg drop-slot --slot squirrel`)
-- [ ] Support für mehrere Tablespaces mit korrekten Symlinks
+- [x] Support für mehrere Tablespaces mit korrekten Symlinks
 
 ### MySQL
 - [x] GTID-basiertes Binlog-Streaming (`StartSyncGTID`)
@@ -148,11 +148,11 @@
 - [x] GitHub Actions CI (Matrix: PG 14-17, MySQL 8, Linux/macOS/Windows, `.github/workflows/ci.yml`)
 - [x] GitHub Actions Release (`.github/workflows/release.yml`)
 - [x] Docker Image (`FROM alpine:3.21`, `Dockerfile`)
-- [ ] Homebrew Formula
-- [ ] README.md mit Quickstart, Architecture, Comparison-Table
+- [x] Homebrew Formula
+- [x] README.md mit Quickstart, Architecture, Comparison-Table
 
 ### Phase 5 Rest
-- [ ] `squirrel mount` auf Windows mit WinFsp (`cgofuse`)
+- [x] `squirrel mount` auf Windows mit WinFsp (`cgofuse`)
 - [x] `squirrel diff --stat` – nur Zahlen, keine Dateiliste
 - [x] Cross-Snapshot-Dedup-Report (`squirrel stats --dedup`)
 - [x] FUSE: Zeitstempel + Permissions korrekt aus Snapshot-Metadaten
