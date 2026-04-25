@@ -7,7 +7,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-// encoderPool holds reusable zstd.Encoders; each goroutine gets its own to avoid lock contention.
+// holds reusable zstd.Encoders; each goroutine gets its own to avoid lock contention.
 var encoderPool = sync.Pool{
 	New: func() any {
 		enc, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedDefault))

@@ -15,7 +15,7 @@ import (
 
 const githubRepo = "elpol4k0/squirrel"
 
-// Version is set via -ldflags at build time.
+// -ldflags at build time.
 var Version = "dev"
 
 var selfUpdateCmd = &cobra.Command{
