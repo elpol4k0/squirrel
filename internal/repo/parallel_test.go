@@ -8,8 +8,7 @@ import (
 	"github.com/elpol4k0/squirrel/internal/repo"
 )
 
-// TestParallelUpload_AllBlobsRecoverable saves several blobs across multiple auto-flushes
-// and verifies every blob is correctly stored and loadable after Flush completes.
+// all blobs recoverable after multiple auto-flushes
 func TestParallelUpload_AllBlobsRecoverable(t *testing.T) {
 	dir := initTestRepo(t)
 	ctx := context.Background()
@@ -49,8 +48,7 @@ func TestParallelUpload_AllBlobsRecoverable(t *testing.T) {
 	}
 }
 
-// TestParallelUpload_IndexPersistedAcrossSessions verifies that all blob locations
-// written during a parallel-upload session survive a repo close/reopen.
+// blob locations survive a repo close/reopen
 func TestParallelUpload_IndexPersistedAcrossSessions(t *testing.T) {
 	dir := initTestRepo(t)
 	ctx := context.Background()

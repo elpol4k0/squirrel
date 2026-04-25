@@ -20,7 +20,7 @@ type Snapshot struct {
 	Paths    []string          `json:"paths"`
 	Tree     string            `json:"tree"`
 	Tags     []string          `json:"tags,omitempty"`
-	Meta     map[string]string `json:"meta,omitempty"` // e.g. start_lsn, end_lsn, timeline, system_id
+	Meta     map[string]string `json:"meta,omitempty"`
 }
 
 type Tree struct {
@@ -29,12 +29,12 @@ type Tree struct {
 
 type TreeNode struct {
 	Name    string   `json:"name"`
-	Type    string   `json:"type"` // "file" | "dir"
+	Type    string   `json:"type"`
 	Size    int64    `json:"size"`
 	Mode    uint32   `json:"mode,omitempty"`
-	ModTime int64    `json:"mtime,omitempty"`   // unix nanoseconds
-	Content []string `json:"content,omitempty"` // file: ordered blob IDs
-	Subtree string   `json:"subtree,omitempty"` // dir: tree blob ID
+	ModTime int64    `json:"mtime,omitempty"`
+	Content []string `json:"content,omitempty"`
+	Subtree string   `json:"subtree,omitempty"`
 }
 
 func NewSnapshot(paths []string, tags []string) (*Snapshot, error) {

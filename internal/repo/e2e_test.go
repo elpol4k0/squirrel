@@ -11,8 +11,7 @@ import (
 	"github.com/elpol4k0/squirrel/internal/repo"
 )
 
-// TestE2E_BackupPruneRestoreVerify runs a complete backup→prune→restore cycle
-// using only the local backend and verifies data integrity end-to-end.
+// complete backup → prune → restore cycle with local backend
 func TestE2E_BackupPruneRestoreVerify(t *testing.T) {
 	repoDir := initTestRepo(t)
 	srcDir := t.TempDir()
@@ -128,8 +127,7 @@ func TestE2E_BackupPruneRestoreVerify(t *testing.T) {
 	}
 }
 
-// TestE2E_PruneAfterForget verifies that deleting a snapshot and pruning actually
-// removes its exclusive data blobs while keeping shared blobs intact.
+// forget + prune must remove exclusive blobs while shared blobs stay
 func TestE2E_PruneAfterForget(t *testing.T) {
 	dir := initTestRepo(t)
 	ctx := context.Background()

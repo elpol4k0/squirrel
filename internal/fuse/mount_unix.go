@@ -89,7 +89,7 @@ type snapDir struct {
 	r       *repo.Repo
 	treeID  string
 	mode    uint32
-	modTime int64 // unix nanoseconds
+	modTime int64
 }
 
 func (d *snapDir) OnAdd(ctx context.Context) {
@@ -131,7 +131,7 @@ type snapFile struct {
 	blobIDs []string
 	size    int64
 	mode    uint32
-	modTime int64 // unix nanoseconds
+	modTime int64
 }
 
 func (f *snapFile) Getattr(ctx context.Context, fh gofuse.FileHandle, out *fuse.AttrOut) syscall.Errno {

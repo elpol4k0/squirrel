@@ -17,7 +17,6 @@ var _ = os.ReadDir
 
 const testPassword = "correct-horse-battery-staple"
 
-// initTestRepo initialises a repo in a temp dir using the test password directly.
 func initTestRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()

@@ -17,7 +17,7 @@ type entry struct {
 	labels map[string]string
 	value  float64
 	help   string
-	kind   string // gauge | counter
+	kind   string
 }
 
 func Set(name string, value float64, labels map[string]string, help string) {

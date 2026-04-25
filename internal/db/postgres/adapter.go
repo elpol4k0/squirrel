@@ -19,7 +19,7 @@ const walSegSize = 16 * 1024 * 1024 // default PostgreSQL WAL segment size
 type WALSegment struct {
 	StartLSN pglogrepl.LSN
 	BlobID   string
-	Name     string // PG WAL filename, e.g. 000000010000000000000001
+	Name     string
 }
 
 type Adapter struct {
@@ -263,7 +263,6 @@ func (a *Adapter) replConn(ctx context.Context) (*pgconn.PgConn, error) {
 	return conn, nil
 }
 
-// copyDataReader wraps a replication connection CopyOut stream as an io.Reader.
 type copyDataReader struct {
 	conn *pgconn.PgConn
 	ctx  context.Context
@@ -301,7 +300,6 @@ func (r *copyDataReader) Read(p []byte) (int, error) {
 	}
 }
 
-// streamTAR feeds TAR data from rd into the repo as blobs and returns their IDs in order.
 func streamTAR(ctx context.Context, r *repo.Repo, rd io.Reader, label string) ([]string, error) {
 	buf := make([]byte, 4*1024*1024)
 	var blobIDs []string

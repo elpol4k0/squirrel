@@ -20,6 +20,13 @@ func resolveVault(path string) (string, error) {
 	if token == "" {
 		return "", fmt.Errorf("VAULT_TOKEN is not set")
 	}
+	return resolveVaultWithAddress(addr, token, path)
+}
+
+func resolveVaultWithAddress(addr, token, path string) (string, error) {
+	if addr == "" {
+		addr = "https://127.0.0.1:8200"
+	}
 
 	secretPath, field, _ := strings.Cut(path, "#")
 	url := strings.TrimRight(addr, "/") + "/v1/" + secretPath
@@ -59,7 +66,6 @@ func resolveVault(path string) (string, error) {
 	}
 
 	if field == "" {
-		// return first string value
 		for _, v := range data {
 			if s, ok := v.(string); ok {
 				return s, nil

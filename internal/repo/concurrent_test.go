@@ -9,9 +9,7 @@ import (
 	"github.com/elpol4k0/squirrel/internal/repo"
 )
 
-// TestSaveBlob_ConcurrentNoDuplicates calls SaveBlob from many goroutines simultaneously
-// and checks that each unique blob ends up in the index exactly once.
-// Run with -race to detect data races.
+// concurrent SaveBlob must produce no duplicates; run with -race
 func TestSaveBlob_ConcurrentNoDuplicates(t *testing.T) {
 	dir := initTestRepo(t)
 	ctx := context.Background()
@@ -75,8 +73,7 @@ func TestSaveBlob_ConcurrentNoDuplicates(t *testing.T) {
 	}
 }
 
-// TestSaveBlob_ConcurrentDedup verifies that saving the same blob from multiple
-// goroutines results in exactly one copy in the index.
+// same blob from many goroutines must land in the index exactly once
 func TestSaveBlob_ConcurrentDedup(t *testing.T) {
 	dir := initTestRepo(t)
 	ctx := context.Background()

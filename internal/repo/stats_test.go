@@ -8,8 +8,7 @@ import (
 	"github.com/elpol4k0/squirrel/internal/repo"
 )
 
-// TestDedupStats_LogicalGreaterThanPhysical verifies that after saving compressible
-// data the logical byte count (from tree nodes) exceeds physical storage (compressed+encrypted).
+// compressible data: logical bytes must exceed compressed physical storage
 func TestDedupStats_LogicalGreaterThanPhysical(t *testing.T) {
 	dir := initTestRepo(t)
 	ctx := context.Background()
@@ -77,9 +76,7 @@ func TestDedupStats_LogicalGreaterThanPhysical(t *testing.T) {
 	}
 }
 
-// TestDedupStats_SameDataMultipleSnapshots verifies that two snapshots sharing
-// the same blob data have a combined logical size equal to 2× the blob size,
-// while the physical index contains only one entry.
+// two snapshots sharing a blob: logical 2×, physical index still one entry
 func TestDedupStats_SameDataMultipleSnapshots(t *testing.T) {
 	dir := initTestRepo(t)
 	ctx := context.Background()

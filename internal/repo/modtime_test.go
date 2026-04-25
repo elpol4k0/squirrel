@@ -9,8 +9,7 @@ import (
 	"github.com/elpol4k0/squirrel/internal/repo"
 )
 
-// TestTreeNode_ModTimeRoundTrip verifies that ModTime survives a JSON marshal/unmarshal cycle
-// (i.e. the field is correctly written to and read from the encrypted snapshot).
+// ModTime must survive JSON marshal/unmarshal
 func TestTreeNode_ModTimeRoundTrip(t *testing.T) {
 	want := time.Date(2024, 6, 15, 10, 30, 0, 123456789, time.UTC)
 
@@ -41,8 +40,7 @@ func TestTreeNode_ModTimeRoundTrip(t *testing.T) {
 	}
 }
 
-// TestTreeNode_ModTime_StoredInRepo saves a blob tree containing ModTime metadata
-// to a real repo and verifies it can be loaded back correctly.
+// ModTime persists through repo save/load
 func TestTreeNode_ModTime_StoredInRepo(t *testing.T) {
 	dir := initTestRepo(t)
 	ctx := context.Background()

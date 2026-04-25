@@ -12,8 +12,8 @@ import (
 
 type Entry struct {
 	Profile     string
-	Schedule    string // cron expression
-	BinaryPath  string // absolute path to squirrel binary
+	Schedule    string
+	BinaryPath  string
 	ConfigPath  string
 	Description string
 }

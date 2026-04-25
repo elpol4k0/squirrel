@@ -5,33 +5,45 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 const Version = 1
 
 type Config struct {
-	Version      int                   `koanf:"version"`
-	Repositories map[string]RepoCfg    `koanf:"repositories"`
-	Defaults     DefaultsCfg           `koanf:"defaults"`
-	Profiles     map[string]ProfileCfg `koanf:"profiles"`
+	Version      int                          `koanf:"version"`
+	Secrets      map[string]SecretProviderCfg `koanf:"secrets"`
+	Repositories map[string]RepoCfg           `koanf:"repositories"`
+	Defaults     DefaultsCfg                  `koanf:"defaults"`
+	Profiles     map[string]ProfileCfg        `koanf:"profiles"`
+}
+
+type SecretProviderCfg struct {
+	Type      string `koanf:"type"`
+	File      string `koanf:"file"`
+	Service   string `koanf:"service"`
+	Address   string `koanf:"address"`
+	TokenFrom string `koanf:"token-from"`
 }
 
 type RepoCfg struct {
 	URL          string            `koanf:"url"`
-	Password     string            `koanf:"password"` // may contain ${provider:path}
+	Password     string            `koanf:"password"`
 	PasswordFile string            `koanf:"password-file"`
 	Env          map[string]string `koanf:"env"`
 }
 
 type DefaultsCfg struct {
-	Retention RetentionCfg `koanf:"retention"`
+	Retention        RetentionCfg `koanf:"retention"`
+	Compression      string       `koanf:"compression"`
+	CompressionLevel int          `koanf:"compression-level"`
 }
 
 type ProfileCfg struct {
 	Extends    string `koanf:"extends"`
-	Abstract   bool   `koanf:"abstract"` // profiles starting with _ are abstract by default
+	Abstract   bool   `koanf:"abstract"`
 	Repository string `koanf:"repository"`
-	Type       string `koanf:"type"` // "files" | "postgres" | "mysql"
+	Type       string `koanf:"type"`
 
 	Paths    []string `koanf:"paths"`
 	Excludes []string `koanf:"excludes"`
@@ -40,7 +52,6 @@ type ProfileCfg struct {
 	Databases []string `koanf:"databases"`
 	Slot      string   `koanf:"slot"`
 
-	// schedule: cron expression or @daily/@hourly/etc.
 	Schedule string `koanf:"schedule"`
 
 	Tags      []string     `koanf:"tags"`
@@ -103,6 +114,11 @@ func resolveProfile(cfg *Config, name string, visited map[string]bool) (ProfileC
 	p, ok := cfg.Profiles[name]
 	if !ok {
 		return ProfileCfg{}, fmt.Errorf("profile %q not found", name)
+	}
+
+	// profiles whose name starts with _ are abstract by convention, no explicit flag needed
+	if strings.HasPrefix(name, "_") {
+		p.Abstract = true
 	}
 
 	if p.Extends == "" {

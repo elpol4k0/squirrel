@@ -14,7 +14,7 @@ import (
 type S3 struct {
 	client *minio.Client
 	bucket string
-	prefix string // optional key prefix inside the bucket
+	prefix string
 }
 
 // creds: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN

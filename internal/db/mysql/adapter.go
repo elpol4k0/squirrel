@@ -20,8 +20,8 @@ import (
 )
 
 type BinlogSegment struct {
-	File   string // binlog filename, e.g. mysql-bin.000001
-	Pos    uint32 // starting position within the file
+	File   string
+	Pos    uint32
 	BlobID string
 }
 
@@ -190,7 +190,6 @@ func (a *Adapter) StreamBinlog(ctx context.Context, r *repo.Repo, pos gomysql.Po
 	return segments, err
 }
 
-// binlogWriter implements io.WriteCloser with callbacks.
 type binlogWriter struct {
 	onWrite func([]byte) (int, error)
 	onClose func() error
